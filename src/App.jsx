@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
+import Login from './pages/login'; 
 import Dashboard from './pages/Dashboard';
 
 // প্রটেক্টেড রাউট কম্পোনেন্ট
