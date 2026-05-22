@@ -229,7 +229,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: PENDING REVIEWS - UPDATED MOBILE LAYOUT */}
+          {/* TAB: PENDING REVIEWS */}
           {activeTab === 'pending' && (
             <div className="max-w-4xl mx-auto">
               <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500 mb-6">
@@ -307,7 +307,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: READY FOR EXPORT - UPDATED MOBILE LAYOUT */}
+          {/* TAB: READY FOR EXPORT */}
           {activeTab === 'ready' && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-center mb-5 border-b pb-3">
