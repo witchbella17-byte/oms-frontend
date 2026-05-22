@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink, RotateCcw, X, Copy, Check, Search } from 'lucide-react';
+import { ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink, RotateCcw, X, Copy, Check, Search, Edit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const SUPABASE_URL = 'https://nqiqfxcohyzaltepgvjt.supabase.co'; 
@@ -13,12 +13,12 @@ const Dashboard = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
   const [viewOrderModal, setViewOrderModal] = useState(null); 
+  const [editOrderModal, setEditOrderModal] = useState(null); // NEW: Edit Modal State
   const [selectedExportOrders, setSelectedExportOrders] = useState([]); 
   
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   
-  // NEW: Search and Copy states
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedItem, setCopiedItem] = useState(null);
 
@@ -44,7 +44,6 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  // Helper function for copy to clipboard
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
     setCopiedItem(id);
@@ -129,6 +128,17 @@ const Dashboard = () => {
     }
   };
 
+  // NEW: Handle Update Order
+  const handleUpdateOrder = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`https://oms-backend-b5o2.onrender.com/api/orders/${editOrderModal.id}`, editOrderModal, axiosConfig);
+      alert('Order updated successfully!');
+      setEditOrderModal(null);
+      fetchOrders();
+    } catch (err) { alert('Failed to update order.'); }
+  };
+
   const [reviewForm, setReviewForm] = useState({ orderId: null, review_screenshot_1: '', review_screenshot_2: '' });
   const handleSubmitReview = async (e) => {
     e.preventDefault();
@@ -174,6 +184,10 @@ const Dashboard = () => {
   };
 
   const formatHash = (str) => `#${(str || '').replace(/^#+/, '')}`;
+  const getFormattedDate = (dateStr) => {
+    if (!dateStr) return '';
+    try { return new Date(dateStr).toISOString().split('T')[0]; } catch(e) { return ''; }
+  };
 
   const selectedProductForOrder = products.find(p => p.id === parseInt(newOrder.product_id));
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
@@ -185,11 +199,10 @@ const Dashboard = () => {
     completedList: completedOrders.filter(o => o.product_id === p.id)
   })).filter(p => p.completedList.length > 0);
 
-  // Search filter logic for pending orders
   const filteredPendingOrders = orders.filter(o => {
     if (o.status !== 'pending') return false;
     if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase().replace(/^#+/, ''); // user can search with or without hash
+    const q = searchQuery.toLowerCase().replace(/^#+/, ''); 
     const orderNum = o.order_number.toLowerCase().replace(/^#+/, '');
     return orderNum.includes(q);
   });
@@ -203,7 +216,6 @@ const Dashboard = () => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR */}
         <aside className="hidden md:flex w-64 bg-blue-900 text-white flex-col shadow-lg z-10">
           <div className="p-6 text-2xl font-bold border-b border-blue-800 text-center tracking-wider">OMS Admin</div>
           <nav className="flex-1 p-4 space-y-2 mt-4 overflow-y-auto">
@@ -224,7 +236,7 @@ const Dashboard = () => {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-gray-50">
           
-          {/* TAB: PRODUCTS (UPDATED WITH COPY BUTTONS) */}
+          {/* TAB: PRODUCTS */}
           {activeTab === 'products' && (
             <div className="max-w-5xl mx-auto">
               <h2 className="text-xl md:text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Inventory List</h2>
@@ -240,7 +252,6 @@ const Dashboard = () => {
                       <div className="flex-1 overflow-hidden">
                         <h3 className="font-bold text-gray-800 text-sm truncate" title={p.store_name}>{p.store_name}</h3>
                         
-                        {/* Keyword with Copy Button */}
                         <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
                           <span className="truncate max-w-[120px]" title={p.keyword}>{p.keyword}</span>
                           <button onClick={() => handleCopy(p.keyword, `kw-${p.id}`)} className="text-indigo-500 hover:text-indigo-700 bg-indigo-50 p-1 rounded transition">
@@ -257,7 +268,6 @@ const Dashboard = () => {
                       <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
                     </div>
 
-                    {/* Product Link with Copy Button */}
                     {p.product_link && (
                       <div className="flex gap-2 mt-2">
                         <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center space-x-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 transition">
@@ -301,7 +311,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: NEW ORDER ENTRY (NOW SEPARATED) */}
+          {/* TAB: NEW ORDER ENTRY */}
           {activeTab === 'new_order' && (
             <div className="max-w-4xl mx-auto">
               <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500">
@@ -372,13 +382,12 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: PENDING REVIEWS (NOW WITH SEARCH BAR) */}
+          {/* TAB: PENDING REVIEWS */}
           {activeTab === 'pending' && (
             <div className="max-w-4xl mx-auto">
               
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
                 <h3 className="font-bold text-gray-800 text-xl">Pending Reviews</h3>
-                {/* Search Bar */}
                 <div className="relative w-full sm:w-64">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                   <input
@@ -408,7 +417,12 @@ const Dashboard = () => {
                               <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
                             </div>
                           </div>
-                          <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
+                          
+                          {/* UPDATED: Added Edit Button next to Delete */}
+                          <div className="flex items-center space-x-1 shrink-0">
+                            <button onClick={() => setEditOrderModal(order)} className="text-gray-400 hover:text-blue-500 p-1 transition"><Edit size={18}/></button>
+                            <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 transition"><Trash2 size={18}/></button>
+                          </div>
                         </div>
                         
                         <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
@@ -480,7 +494,12 @@ const Dashboard = () => {
                               <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
                             </div>
                           </div>
-                          <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
+                          
+                          {/* UPDATED: Added Edit Button next to Delete */}
+                          <div className="flex items-center space-x-1 shrink-0">
+                            <button onClick={() => setEditOrderModal(order)} className="text-gray-400 hover:text-blue-500 p-1 transition"><Edit size={18}/></button>
+                            <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 transition"><Trash2 size={18}/></button>
+                          </div>
                         </div>
                         <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
                           <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
@@ -529,6 +548,64 @@ const Dashboard = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* EDIT ORDER MODAL (NEW) */}
+          {editOrderModal && (
+            <div className="fixed inset-0 bg-black/60 z-[60] overflow-y-auto flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10 md:mt-0">
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                  <h4 className="font-bold text-lg text-gray-800">Edit Order Details</h4>
+                  <button onClick={() => setEditOrderModal(null)} className="text-red-500 text-sm font-bold bg-red-50 px-3 py-1 rounded-lg hover:bg-red-100">Close</button>
+                </div>
+                
+                <form onSubmit={handleUpdateOrder} className="space-y-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-semibold mb-1">Order Date</label>
+                      <input type="date" required className="w-full border p-2 rounded outline-none focus:border-blue-400" 
+                        value={getFormattedDate(editOrderModal.order_date || editOrderModal.created_at)} 
+                        onChange={e => setEditOrderModal({...editOrderModal, order_date: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">Order Number</label>
+                      <input type="text" required className="w-full border p-2 rounded outline-none focus:border-blue-400" 
+                        value={editOrderModal.order_number} 
+                        onChange={e => setEditOrderModal({...editOrderModal, order_number: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">Current Price ($)</label>
+                      <input type="number" step="0.01" required className="w-full border p-2 rounded outline-none focus:border-blue-400" 
+                        value={editOrderModal.current_price || ''} 
+                        onChange={e => setEditOrderModal({...editOrderModal, current_price: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">PayPal Email</label>
+                      <input type="email" required className="w-full border p-2 rounded outline-none focus:border-blue-400" 
+                        value={editOrderModal.paypal_email} 
+                        onChange={e => setEditOrderModal({...editOrderModal, paypal_email: e.target.value})} />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-3 border rounded-lg bg-gray-50">
+                      <label className="block text-xs font-bold mb-2">Screenshot 1</label>
+                      {editOrderModal.order_screenshot_1 && <img src={editOrderModal.order_screenshot_1} className="h-16 w-16 object-cover border rounded mb-2" alt="SS1"/>}
+                      <input type="file" accept="image/*" className="w-full text-xs cursor-pointer" onChange={e => handleImageUpload(e, setEditOrderModal, 'order_screenshot_1')} />
+                    </div>
+                    <div className="p-3 border rounded-lg bg-gray-50">
+                      <label className="block text-xs font-bold mb-2">Screenshot 2 (Opt)</label>
+                      {editOrderModal.order_screenshot_2 && <img src={editOrderModal.order_screenshot_2} className="h-16 w-16 object-cover border rounded mb-2" alt="SS2"/>}
+                      <input type="file" accept="image/*" className="w-full text-xs cursor-pointer" onChange={e => handleImageUpload(e, setEditOrderModal, 'order_screenshot_2')} />
+                    </div>
+                  </div>
+                  
+                  <button type="submit" disabled={uploadingImage} className={`w-full py-3 mt-2 rounded-lg font-bold text-white shadow-md transition ${uploadingImage ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}>
+                     {uploadingImage ? 'Uploading Image...' : 'Save Changes'}
+                  </button>
+                </form>
               </div>
             </div>
           )}
@@ -612,7 +689,6 @@ const Dashboard = () => {
         </main>
       </div>
 
-      {/* Mobile Nav (Updated with 6 items layout) */}
       <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-between px-1 py-2 pb-4 text-[9px] font-bold text-gray-500 z-[50]">
         <button onClick={() => setActiveTab('products')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'products' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><Home size={18} className="mb-1"/>Products</button>
         <button onClick={() => setActiveTab('add_product')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'add_product' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><PlusCircle size={18} className="mb-1"/>Add Prod</button>
