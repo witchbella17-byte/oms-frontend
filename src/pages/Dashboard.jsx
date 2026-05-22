@@ -7,10 +7,10 @@ import { useNavigate } from 'react-router-dom';
 // SUPABASE CONFIGURATION
 // ==========================================
 const SUPABASE_URL = 'https://nqiqfxcohyzaltepgvjt.supabase.co'; 
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xaXFmeGNvaHl6YWx0ZXBndmp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzODUyOTUsImV4cCI6MjA5NDk2MTI5NX0.k46b8JxhGOEh1SDo3xP1A85Bm7vMlsaaRHxLySjkvuA'; // <--- Ekhane apnar copy kora lamba anon key ti paste korun
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xaXFmeGNvaHl6YWx0ZXBndmp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzODUyOTUsImV4cCI6MjA5NDk2MTI5NX0.k46b8JxhGOEh1SDo3xP1A85Bm7vMlsaaRHxLySjkvuA'; 
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState('products'); // products, add_product, pending, ready, completed
+  const [activeTab, setActiveTab] = useState('products'); 
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -191,7 +191,6 @@ const Dashboard = () => {
                       <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
                     </div>
 
-                    {/* NEW: View Product Link Button */}
                     {p.product_link && (
                       <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center space-x-1 w-full bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 hover:text-blue-700 active:scale-95 transition">
                         <ExternalLink size={14}/> <span>View Product Link</span>
@@ -230,7 +229,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: PENDING REVIEWS */}
+          {/* TAB: PENDING REVIEWS - UPDATED MOBILE LAYOUT */}
           {activeTab === 'pending' && (
             <div className="max-w-4xl mx-auto">
               <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500 mb-6">
@@ -280,22 +279,25 @@ const Dashboard = () => {
               </div>
 
               <h3 className="font-bold text-gray-700 mb-3 text-lg border-b pb-2">Pending Reviews (Waiting)</h3>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {orders.filter(o => o.status === 'pending').map(order => {
                   const p = products.find(prod => prod.id === order.product_id);
                   return (
-                    <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col sm:flex-row gap-4 items-start sm:items-center relative">
-                      <button onClick={() => handleDeleteOrder(order.id)} className="absolute top-3 right-3 text-gray-300 hover:text-red-500"><Trash2 size={18}/></button>
-                      <div className="flex items-center space-x-3">
-                        <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
-                        <div>
-                          <p className="text-sm font-bold text-gray-800">#{order.order_number}</p>
-                          <p className="text-xs text-gray-500">{order.paypal_email}</p>
+                    <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
+                          <div className="overflow-hidden pr-2">
+                            <p className="text-sm font-bold text-gray-800 truncate">#{order.order_number}</p>
+                            <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
+                          </div>
                         </div>
+                        <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
                       </div>
-                      <div className="flex-1 flex justify-end items-center space-x-2 w-full sm:w-auto mt-2 sm:mt-0 pr-6">
-                        <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-3 py-2 rounded-lg font-bold"><Eye size={14}/> <span>View</span></button>
-                        <button onClick={() => setReviewForm({ orderId: order.id, review_screenshot_1: '', review_screenshot_2: '' })} className="text-xs bg-yellow-500 text-white px-3 py-2 rounded-lg font-bold shadow-sm active:scale-95">Add Review</button>
+                      
+                      <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                        <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-4 py-2 rounded-lg font-bold transition"><Eye size={14}/> <span>View</span></button>
+                        <button onClick={() => setReviewForm({ orderId: order.id, review_screenshot_1: '', review_screenshot_2: '' })} className="text-xs bg-yellow-500 text-white px-4 py-2 rounded-lg font-bold shadow-sm active:scale-95 transition">Add Review</button>
                       </div>
                     </div>
                   );
@@ -305,7 +307,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: READY FOR EXPORT */}
+          {/* TAB: READY FOR EXPORT - UPDATED MOBILE LAYOUT */}
           {activeTab === 'ready' && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-center mb-5 border-b pb-3">
@@ -314,22 +316,25 @@ const Dashboard = () => {
                   <Download size={18} /> <span className="text-sm">Export Excel</span>
                 </button>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {orders.filter(o => o.status === 'review_submitted').map(order => {
                   const p = products.find(prod => prod.id === order.product_id);
                   return (
-                    <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col sm:flex-row gap-4 items-start sm:items-center relative">
-                      <button onClick={() => handleDeleteOrder(order.id)} className="absolute top-3 right-3 text-gray-300 hover:text-red-500"><Trash2 size={18}/></button>
-                      <div className="flex items-center space-x-3">
-                        <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
-                        <div>
-                          <p className="text-sm font-bold text-gray-800">#{order.order_number}</p>
-                          <p className="text-xs text-gray-500">{order.paypal_email}</p>
+                    <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
+                          <div className="overflow-hidden pr-2">
+                            <p className="text-sm font-bold text-gray-800 truncate">#{order.order_number}</p>
+                            <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
+                          </div>
                         </div>
+                        <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
                       </div>
-                      <div className="flex-1 flex justify-end items-center space-x-2 w-full sm:w-auto mt-2 sm:mt-0 pr-6">
-                        <span className="px-2 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-2">Ready</span>
-                        <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-3 py-2 rounded-lg font-bold"><Eye size={14}/> <span>View Details</span></button>
+
+                      <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                        <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
+                        <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-4 py-2 rounded-lg font-bold shadow-sm transition"><Eye size={14}/> <span>View Details</span></button>
                       </div>
                     </div>
                   );
@@ -364,11 +369,11 @@ const Dashboard = () => {
                       <div className="p-2 space-y-2">
                         {product.completedList.map(order => (
                           <div key={order.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded border border-green-100">
-                            <div>
-                              <p className="text-xs font-bold text-gray-800">#{order.order_number}</p>
-                              <p className="text-[10px] text-gray-500">{new Date(order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
+                            <div className="overflow-hidden pr-2">
+                              <p className="text-xs font-bold text-gray-800 truncate">#{order.order_number}</p>
+                              <p className="text-[10px] text-gray-500 truncate">{new Date(order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
                             </div>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-2 shrink-0">
                               <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">View</button>
                               <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                             </div>
@@ -394,9 +399,9 @@ const Dashboard = () => {
                   </div>
                   <div className="flex items-center space-x-3 mb-4 bg-gray-50 p-3 rounded-lg border">
                     <img src={p?.product_image} alt="" className="w-14 h-14 rounded object-cover border"/>
-                    <div>
-                      <p className="font-bold text-gray-800">{p?.store_name}</p>
-                      <p className="text-xs text-gray-500 font-medium">#{viewOrderModal.order_number} • {viewOrderModal.paypal_email}</p>
+                    <div className="overflow-hidden">
+                      <p className="font-bold text-gray-800 truncate">{p?.store_name}</p>
+                      <p className="text-xs text-gray-500 font-medium truncate">#{viewOrderModal.order_number} • {viewOrderModal.paypal_email}</p>
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -432,7 +437,7 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center space-x-3 mb-4 bg-gray-50 p-2 rounded border">
                   <img src={reviewProductData?.product_image} alt="" className="w-10 h-10 rounded object-cover"/>
-                  <p className="text-xs font-bold">#{reviewOrderData?.order_number}</p>
+                  <p className="text-xs font-bold truncate">#{reviewOrderData?.order_number}</p>
                 </div>
                 <form onSubmit={handleSubmitReview} className="space-y-3">
                   <div className="p-3 border rounded bg-gray-50">
