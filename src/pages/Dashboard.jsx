@@ -1,21 +1,21 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Package, ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List } from 'lucide-react';
+import { Package, ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // ==========================================
-// SUPABASE CONFIGURATION (এখানে আপনার ডাটাগুলো বসান)
+// SUPABASE CONFIGURATION
 // ==========================================
-const SUPABASE_URL = 'https://nqiqfxcohyzaltepgvjt.supabase.co'; // <--- এখানে Supabase URL বসান
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xaXFmeGNvaHl6YWx0ZXBndmp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzODUyOTUsImV4cCI6MjA5NDk2MTI5NX0.k46b8JxhGOEh1SDo3xP1A85Bm7vMlsaaRHxLySjkvuA'; // <--- এখানে Supabase Anon Key বসান
+const SUPABASE_URL = 'https://nqiqfxcohyzaltepgvjt.supabase.co'; 
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xaXFmeGNvaHl6YWx0ZXBndmp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzODUyOTUsImV4cCI6MjA5NDk2MTI5NX0.k46b8JxhGOEh1SDo3xP1A85Bm7vMlsaaRHxLySjkvuA'; // <--- Ekhane apnar copy kora lamba anon key ti paste korun
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('products'); // products, add_product, pending, ready, completed
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false); // Custom Dropdown State
-  const [viewOrderModal, setViewOrderModal] = useState(null); // View Details Modal State
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
+  const [viewOrderModal, setViewOrderModal] = useState(null); 
   const navigate = useNavigate();
 
   const token = localStorage.getItem('adminToken');
@@ -38,9 +38,6 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  // ==========================================
-  // NEW: Supabase Image Upload Handler
-  // ==========================================
   const handleImageUpload = async (e, stateSetter, fieldName) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -70,7 +67,6 @@ const Dashboard = () => {
     }
   };
 
-  // Delete Handlers
   const handleDeleteProduct = async (id) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
@@ -88,7 +84,6 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to delete order.'); }
   };
 
-  // Product Add Form
   const [newProduct, setNewProduct] = useState({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
   const handleAddProduct = async (e) => {
     e.preventDefault();
@@ -100,7 +95,6 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to add.'); }
   };
 
-  // Order Add Form
   const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '' });
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
@@ -113,7 +107,6 @@ const Dashboard = () => {
     } catch (err) { alert(err.response?.data?.message || 'Failed to submit.'); }
   };
 
-  // Review Form
   const [reviewForm, setReviewForm] = useState({ orderId: null, review_screenshot_1: '', review_screenshot_2: '' });
   const handleSubmitReview = async (e) => {
     e.preventDefault();
@@ -136,7 +129,6 @@ const Dashboard = () => {
     } catch (err) { alert('No pending reviews ready for export!'); }
   };
 
-  // Helpers for UI
   const selectedProductForOrder = products.find(p => p.id === parseInt(newOrder.product_id));
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
   const reviewProductData = reviewOrderData ? products.find(p => p.id === reviewOrderData.product_id) : null;
@@ -150,14 +142,12 @@ const Dashboard = () => {
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
       
-      {/* Top Header (Mobile) */}
       <header className="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center md:hidden z-10 sticky top-0">
         <h1 className="text-xl font-bold tracking-wider">OMS Admin</h1>
         <button onClick={handleLogout} className="text-red-300 hover:text-red-100"><LogOut size={22} /></button>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Desktop Sidebar */}
         <aside className="hidden md:flex w-64 bg-blue-900 text-white flex-col shadow-lg z-10">
           <div className="p-6 text-2xl font-bold border-b border-blue-800 text-center tracking-wider">OMS Admin</div>
           <nav className="flex-1 p-4 space-y-2 mt-4 overflow-y-auto">
@@ -174,7 +164,6 @@ const Dashboard = () => {
           </div>
         </aside>
 
-        {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-gray-50">
           
           {/* TAB: PRODUCTS */}
@@ -184,21 +173,30 @@ const Dashboard = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map(p => (
                   <div key={p.id} className="bg-white rounded-xl shadow-sm border p-4 flex flex-col relative">
-                    <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600"><Trash2 size={18}/></button>
-                    <div className="flex space-x-4 items-center mb-3">
+                    <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-red-50 p-1 rounded-md transition"><Trash2 size={16}/></button>
+                    
+                    <div className="flex space-x-4 items-center mb-3 pr-6">
                       <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
                         {p.product_image ? <img src={p.product_image} alt="" className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-gray-400 mt-4"/>}
                       </div>
-                      <div>
-                        <h3 className="font-bold text-gray-800 text-sm">{p.store_name}</h3>
-                        <p className="text-xs text-gray-500">{p.keyword}</p>
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="font-bold text-gray-800 text-sm truncate" title={p.store_name}>{p.store_name}</h3>
+                        <p className="text-xs text-gray-500 truncate" title={p.keyword}>{p.keyword}</p>
                         <p className="text-sm font-bold text-blue-600 mt-1">${p.product_price}</p>
                       </div>
                     </div>
+                    
                     <div className="flex justify-between items-center bg-gray-50 p-2 rounded mt-auto border text-sm">
                       <span className="font-medium text-gray-700">Qty: {p.order_qty}</span>
-                      <span className={`px-2 py-1 text-xs font-bold rounded-md ${p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status.toUpperCase()}</span>
+                      <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
                     </div>
+
+                    {/* NEW: View Product Link Button */}
+                    {p.product_link && (
+                      <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center space-x-1 w-full bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 hover:text-blue-700 active:scale-95 transition">
+                        <ExternalLink size={14}/> <span>View Product Link</span>
+                      </a>
+                    )}
                   </div>
                 ))}
                 {products.length === 0 && <p className="text-gray-500 text-center col-span-full mt-10">No products found.</p>}
@@ -235,13 +233,11 @@ const Dashboard = () => {
           {/* TAB: PENDING REVIEWS */}
           {activeTab === 'pending' && (
             <div className="max-w-4xl mx-auto">
-              {/* Order Entry Card */}
               <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500 mb-6">
                 <h3 className="font-bold mb-4 flex items-center text-indigo-700"><PlusCircle size={18} className="mr-2"/> New Order Entry</h3>
                 <form onSubmit={handleSubmitOrder} className="space-y-4 text-sm">
                   <div>
                     <label className="block font-semibold mb-1">Select Product</label>
-                    {/* Custom Dropdown with Image */}
                     <div className="relative">
                       <div className="w-full border p-2 rounded bg-gray-50 flex items-center justify-between cursor-pointer" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
                         {selectedProductForOrder ? (
@@ -456,7 +452,6 @@ const Dashboard = () => {
         </main>
       </div>
 
-      {/* Bottom Navigation (Mobile) */}
       <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-4 text-[10px] font-bold text-gray-500 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <button onClick={() => setActiveTab('products')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'products' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><Home size={20} className="mb-1"/>Products</button>
         <button onClick={() => setActiveTab('add_product')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'add_product' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><PlusCircle size={20} className="mb-1"/>Add</button>
