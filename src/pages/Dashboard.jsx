@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Package, ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink } from 'lucide-react';
+import { Package, ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-// ==========================================
-// SUPABASE CONFIGURATION
-// ==========================================
 const SUPABASE_URL = 'https://nqiqfxcohyzaltepgvjt.supabase.co'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xaXFmeGNvaHl6YWx0ZXBndmp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzODUyOTUsImV4cCI6MjA5NDk2MTI5NX0.k46b8JxhGOEh1SDo3xP1A85Bm7vMlsaaRHxLySjkvuA'; 
 
@@ -16,7 +13,7 @@ const Dashboard = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
   const [viewOrderModal, setViewOrderModal] = useState(null); 
-  const [selectedExportOrders, setSelectedExportOrders] = useState([]); // NEW: For checkboxes
+  const [selectedExportOrders, setSelectedExportOrders] = useState([]); 
   const navigate = useNavigate();
 
   const token = localStorage.getItem('adminToken');
@@ -85,6 +82,14 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to delete order.'); }
   };
 
+  const handleUndoOrder = async (id) => {
+    if (!window.confirm('Are you sure you want to undo this order back to Ready list?')) return;
+    try {
+      await axios.put(`https://oms-backend-b5o2.onrender.com/api/orders/${id}/undo`, {}, axiosConfig);
+      fetchOrders();
+    } catch (err) { alert('Failed to undo order.'); }
+  };
+
   const [newProduct, setNewProduct] = useState({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
   const handleAddProduct = async (e) => {
     e.preventDefault();
@@ -96,7 +101,6 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to add.'); }
   };
 
-  // UPDATED: Added current_price
   const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '' });
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
@@ -120,7 +124,6 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to review.'); }
   };
 
-  // UPDATED: Download only selected Excel
   const handleDownloadExcel = async () => {
     if (selectedExportOrders.length === 0) return alert('Please select at least one order to export.');
     try {
@@ -135,7 +138,6 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to export excel!'); console.error(err); }
   };
 
-  // NEW: Mark selected as Done
   const handleMarkAsDone = async () => {
     if (selectedExportOrders.length === 0) return alert('Please select at least one order to mark as done.');
     if (!window.confirm(`Are you sure you want to mark ${selectedExportOrders.length} order(s) as completed?`)) return;
@@ -280,7 +282,6 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  {/* UPDATED: Order Number and Current Price */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-semibold mb-1">Order Number</label>
@@ -336,7 +337,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: READY FOR EXPORT (UPDATED) */}
+          {/* TAB: READY FOR EXPORT */}
           {activeTab === 'ready' && (() => {
             const readyOrders = orders.filter(o => o.status === 'review_submitted');
             const isAllSelected = readyOrders.length > 0 && selectedExportOrders.length === readyOrders.length;
@@ -347,11 +348,8 @@ const Dashboard = () => {
             };
 
             const handleToggleSelect = (id) => {
-              if (selectedExportOrders.includes(id)) {
-                setSelectedExportOrders(selectedExportOrders.filter(orderId => orderId !== id));
-              } else {
-                setSelectedExportOrders([...selectedExportOrders, id]);
-              }
+              if (selectedExportOrders.includes(id)) setSelectedExportOrders(selectedExportOrders.filter(orderId => orderId !== id));
+              else setSelectedExportOrders([...selectedExportOrders, id]);
             };
 
             return (
@@ -417,7 +415,7 @@ const Dashboard = () => {
             );
           })()}
 
-          {/* TAB: COMPLETED ORDERS */}
+          {/* TAB: COMPLETED ORDERS (UPDATED WITH UNDO BUTTON) */}
           {activeTab === 'completed' && (
             <div className="max-w-4xl mx-auto">
               <h2 className="text-xl font-bold mb-5 text-gray-800 border-b pb-2">Completed History</h2>
@@ -448,7 +446,13 @@ const Dashboard = () => {
                             </div>
                             <div className="flex items-center space-x-2 shrink-0">
                               <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">View</button>
-                              <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
+                              
+                              {/* NEW UNDO BUTTON */}
+                              <button onClick={() => handleUndoOrder(order.id)} className="text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded font-bold flex items-center gap-1 transition">
+                                <RotateCcw size={10} /> Undo
+                              </button>
+                              
+                              <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600 ml-1"><Trash2 size={16} /></button>
                             </div>
                           </div>
                         ))}
