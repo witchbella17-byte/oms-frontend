@@ -16,6 +16,7 @@ const Dashboard = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
   const [viewOrderModal, setViewOrderModal] = useState(null); 
+  const [selectedExportOrders, setSelectedExportOrders] = useState([]); // NEW: For checkboxes
   const navigate = useNavigate();
 
   const token = localStorage.getItem('adminToken');
@@ -95,14 +96,15 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to add.'); }
   };
 
-  const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '' });
+  // UPDATED: Added current_price
+  const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '' });
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     if(!newOrder.product_id) return alert('Please select a product!');
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/orders', newOrder, axiosConfig);
       alert('Order submitted!');
-      setNewOrder({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '' });
+      setNewOrder({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '' });
       fetchOrders(); fetchProducts();
     } catch (err) { alert(err.response?.data?.message || 'Failed to submit.'); }
   };
@@ -118,15 +120,31 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to review.'); }
   };
 
+  // UPDATED: Download only selected Excel
   const handleDownloadExcel = async () => {
+    if (selectedExportOrders.length === 0) return alert('Please select at least one order to export.');
     try {
-      const res = await axios.get('https://oms-backend-b5o2.onrender.com/api/orders/export', { ...axiosConfig, responseType: 'blob' });
+      const res = await axios.post('https://oms-backend-b5o2.onrender.com/api/orders/export', { orderIds: selectedExportOrders }, { ...axiosConfig, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url; link.setAttribute('download', `Reviews_Export_${new Date().getTime()}.xlsx`);
       document.body.appendChild(link); link.click(); link.remove();
-      alert('Excel downloaded!'); fetchOrders();
-    } catch (err) { alert('No pending reviews ready for export!'); }
+      alert('Excel downloaded!'); 
+      setSelectedExportOrders([]);
+      fetchOrders();
+    } catch (err) { alert('Failed to export excel!'); console.error(err); }
+  };
+
+  // NEW: Mark selected as Done
+  const handleMarkAsDone = async () => {
+    if (selectedExportOrders.length === 0) return alert('Please select at least one order to mark as done.');
+    if (!window.confirm(`Are you sure you want to mark ${selectedExportOrders.length} order(s) as completed?`)) return;
+    try {
+      await axios.put('https://oms-backend-b5o2.onrender.com/api/orders/mark-done', { orderIds: selectedExportOrders }, axiosConfig);
+      alert('Orders marked as completed!');
+      setSelectedExportOrders([]);
+      fetchOrders();
+    } catch (err) { alert('Failed to mark orders as completed.'); console.error(err); }
   };
 
   const selectedProductForOrder = products.find(p => p.id === parseInt(newOrder.product_id));
@@ -249,7 +267,7 @@ const Dashboard = () => {
                       {isDropdownOpen && (
                         <div className="absolute z-20 w-full bg-white border rounded-lg shadow-xl max-h-60 overflow-y-auto mt-1">
                           {products.filter(p => p.status === 'available').map(p => (
-                            <div key={p.id} className="p-2 border-b hover:bg-gray-50 flex items-center space-x-3 cursor-pointer" onClick={() => { setNewOrder({...newOrder, product_id: p.id}); setIsDropdownOpen(false); }}>
+                            <div key={p.id} className="p-2 border-b hover:bg-gray-50 flex items-center space-x-3 cursor-pointer" onClick={() => { setNewOrder({...newOrder, product_id: p.id, current_price: p.product_price}); setIsDropdownOpen(false); }}>
                               <img src={p.product_image} className="w-10 h-10 rounded object-cover border" />
                               <div>
                                 <p className="text-sm font-bold text-gray-800">{p.store_name} ({p.keyword})</p>
@@ -262,7 +280,18 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <div><label className="block font-semibold mb-1">Order Number</label><input type="text" required className="w-full border p-2 rounded outline-none" value={newOrder.order_number} onChange={e => setNewOrder({...newOrder, order_number: e.target.value})} /></div>
+                  {/* UPDATED: Order Number and Current Price */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1">Order Number</label>
+                      <input type="text" required className="w-full border p-2 rounded outline-none" value={newOrder.order_number} onChange={e => setNewOrder({...newOrder, order_number: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">Current Price ($)</label>
+                      <input type="number" step="0.01" required className="w-full border p-2 rounded outline-none bg-yellow-50 focus:bg-white" value={newOrder.current_price} onChange={e => setNewOrder({...newOrder, current_price: e.target.value})} placeholder="e.g. 15.99" />
+                    </div>
+                  </div>
+                  
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3 border rounded bg-gray-50">
                       <label className="block text-xs font-bold mb-1">Screenshot 1</label>
@@ -307,42 +336,86 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: READY FOR EXPORT */}
-          {activeTab === 'ready' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="flex justify-between items-center mb-5 border-b pb-3">
-                <h2 className="text-xl font-bold text-gray-800">Ready for Export</h2>
-                <button onClick={handleDownloadExcel} className="flex justify-center items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
-                  <Download size={18} /> <span className="text-sm">Export Excel</span>
-                </button>
-              </div>
-              <div className="space-y-4">
-                {orders.filter(o => o.status === 'review_submitted').map(order => {
-                  const p = products.find(prod => prod.id === order.product_id);
-                  return (
-                    <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
-                          <div className="overflow-hidden pr-2">
-                            <p className="text-sm font-bold text-gray-800 truncate">#{order.order_number}</p>
-                            <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
-                          </div>
-                        </div>
-                        <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
-                      </div>
+          {/* TAB: READY FOR EXPORT (UPDATED) */}
+          {activeTab === 'ready' && (() => {
+            const readyOrders = orders.filter(o => o.status === 'review_submitted');
+            const isAllSelected = readyOrders.length > 0 && selectedExportOrders.length === readyOrders.length;
 
-                      <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                        <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
-                        <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-4 py-2 rounded-lg font-bold shadow-sm transition"><Eye size={14}/> <span>View Details</span></button>
+            const handleSelectAll = (e) => {
+              if (e.target.checked) setSelectedExportOrders(readyOrders.map(o => o.id));
+              else setSelectedExportOrders([]);
+            };
+
+            const handleToggleSelect = (id) => {
+              if (selectedExportOrders.includes(id)) {
+                setSelectedExportOrders(selectedExportOrders.filter(orderId => orderId !== id));
+              } else {
+                setSelectedExportOrders([...selectedExportOrders, id]);
+              }
+            };
+
+            return (
+              <div className="max-w-4xl mx-auto">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
+                  <div className="flex items-center space-x-3">
+                    <h2 className="text-xl font-bold text-gray-800">Ready for Export</h2>
+                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">
+                      {selectedExportOrders.length} Selected
+                    </span>
+                  </div>
+                  <div className="flex space-x-2 w-full sm:w-auto">
+                    <button onClick={handleDownloadExcel} disabled={selectedExportOrders.length === 0} className="flex-1 sm:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
+                      <Download size={18} /> <span className="text-sm">Export Excel</span>
+                    </button>
+                    <button onClick={handleMarkAsDone} disabled={selectedExportOrders.length === 0} className="flex-1 sm:flex-none flex justify-center items-center space-x-2 bg-indigo-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
+                      <CheckCircle size={18} /> <span className="text-sm">Mark as Done</span>
+                    </button>
+                  </div>
+                </div>
+
+                {readyOrders.length > 0 && (
+                  <div className="flex items-center mb-3 px-2">
+                    <input type="checkbox" id="selectAll" checked={isAllSelected} onChange={handleSelectAll} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
+                    <label htmlFor="selectAll" className="ml-2 text-sm font-semibold text-gray-700 cursor-pointer">Select All ({readyOrders.length})</label>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {readyOrders.map(order => {
+                    const p = products.find(prod => prod.id === order.product_id);
+                    const isChecked = selectedExportOrders.includes(order.id);
+
+                    return (
+                      <div key={order.id} className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col transition ${isChecked ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50/10' : ''}`}>
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked} 
+                              onChange={() => handleToggleSelect(order.id)} 
+                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer mr-2" 
+                            />
+                            <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
+                            <div className="overflow-hidden pr-2">
+                              <p className="text-sm font-bold text-gray-800 truncate">#{order.order_number}</p>
+                              <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
+                            </div>
+                          </div>
+                          <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
+                        </div>
+
+                        <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                          <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
+                          <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-4 py-2 rounded-lg font-bold shadow-sm transition"><Eye size={14}/> <span>View Details</span></button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-                {orders.filter(o => o.status === 'review_submitted').length === 0 && <p className="text-center text-gray-500 py-6">No reviews ready for export.</p>}
+                    );
+                  })}
+                  {readyOrders.length === 0 && <p className="text-center text-gray-500 py-6">No reviews ready for export.</p>}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB: COMPLETED ORDERS */}
           {activeTab === 'completed' && (
