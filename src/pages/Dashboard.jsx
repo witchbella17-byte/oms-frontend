@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Package, ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink, RotateCcw, X } from 'lucide-react';
+import { ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink, RotateCcw, X, Copy, Check, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const SUPABASE_URL = 'https://nqiqfxcohyzaltepgvjt.supabase.co'; 
@@ -17,12 +17,14 @@ const Dashboard = () => {
   
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  
+  // NEW: Search and Copy states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [copiedItem, setCopiedItem] = useState(null);
 
   const navigate = useNavigate();
-
   const token = localStorage.getItem('adminToken');
   const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
-
   const today = new Date().toISOString().split('T')[0];
 
   const fetchProducts = () => {
@@ -42,11 +44,17 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  // Helper function for copy to clipboard
+  const handleCopy = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedItem(id);
+    setTimeout(() => setCopiedItem(null), 2000);
+  };
+
   const handleImageUpload = async (e, stateSetter, fieldName) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploadingImage(true);
-
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
 
@@ -90,20 +98,18 @@ const Dashboard = () => {
   };
 
   const [newProduct, setNewProduct] = useState({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
-  
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/products', newProduct, axiosConfig);
       alert('Product added!');
       setNewProduct({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
-      e.target.reset(); // File input clear korar jonno
+      e.target.reset(); 
       setActiveTab('products');
     } catch (err) { alert('Failed to add.'); }
   };
 
   const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
-  
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     if(isSubmittingOrder) return; 
@@ -112,9 +118,9 @@ const Dashboard = () => {
     setIsSubmittingOrder(true); 
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/orders', newOrder, axiosConfig);
-      alert('Order submitted!');
+      alert('Order submitted successfully!');
       setNewOrder({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
-      e.target.reset(); // NEW: Form reset to clear file inputs automatically
+      e.target.reset(); 
       fetchOrders(); fetchProducts();
     } catch (err) { 
       alert(err.response?.data?.message || 'Failed to submit.'); 
@@ -124,7 +130,6 @@ const Dashboard = () => {
   };
 
   const [reviewForm, setReviewForm] = useState({ orderId: null, review_screenshot_1: '', review_screenshot_2: '' });
-  
   const handleSubmitReview = async (e) => {
     e.preventDefault();
     if (isSubmittingReview) return; 
@@ -134,7 +139,7 @@ const Dashboard = () => {
       await axios.put(`https://oms-backend-b5o2.onrender.com/api/orders/${reviewForm.orderId}/review`, reviewForm, axiosConfig);
       alert('Review added!');
       setReviewForm({ orderId: null, review_screenshot_1: '', review_screenshot_2: '' });
-      e.target.reset(); // NEW: Form reset to clear file inputs automatically
+      e.target.reset(); 
       fetchOrders();
     } catch (err) { 
       alert('Failed to review.'); 
@@ -180,6 +185,15 @@ const Dashboard = () => {
     completedList: completedOrders.filter(o => o.product_id === p.id)
   })).filter(p => p.completedList.length > 0);
 
+  // Search filter logic for pending orders
+  const filteredPendingOrders = orders.filter(o => {
+    if (o.status !== 'pending') return false;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase().replace(/^#+/, ''); // user can search with or without hash
+    const orderNum = o.order_number.toLowerCase().replace(/^#+/, '');
+    return orderNum.includes(q);
+  });
+
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
       
@@ -189,13 +203,16 @@ const Dashboard = () => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* SIDEBAR */}
         <aside className="hidden md:flex w-64 bg-blue-900 text-white flex-col shadow-lg z-10">
           <div className="p-6 text-2xl font-bold border-b border-blue-800 text-center tracking-wider">OMS Admin</div>
           <nav className="flex-1 p-4 space-y-2 mt-4 overflow-y-auto">
             <p className="text-xs text-blue-300 font-semibold mb-2 uppercase">Inventory</p>
             <button onClick={() => setActiveTab('products')} className={`w-full flex items-center space-x-3 p-3 rounded-md transition ${activeTab === 'products' ? 'bg-blue-600' : 'hover:bg-blue-800'}`}><Home size={20} /> <span>All Products</span></button>
             <button onClick={() => setActiveTab('add_product')} className={`w-full flex items-center space-x-3 p-3 rounded-md transition ${activeTab === 'add_product' ? 'bg-blue-600' : 'hover:bg-blue-800'}`}><PlusCircle size={20} /> <span>Add Product</span></button>
+            
             <p className="text-xs text-blue-300 font-semibold mb-2 mt-6 uppercase">Operations</p>
+            <button onClick={() => setActiveTab('new_order')} className={`w-full flex items-center space-x-3 p-3 rounded-md transition ${activeTab === 'new_order' ? 'bg-blue-600' : 'hover:bg-blue-800'}`}><ShoppingCart size={20} /> <span>New Order</span></button>
             <button onClick={() => setActiveTab('pending')} className={`w-full flex items-center space-x-3 p-3 rounded-md transition ${activeTab === 'pending' ? 'bg-blue-600' : 'hover:bg-blue-800'}`}><Clock size={20} /> <span>Pending Reviews</span></button>
             <button onClick={() => setActiveTab('ready')} className={`w-full flex items-center space-x-3 p-3 rounded-md transition ${activeTab === 'ready' ? 'bg-blue-600' : 'hover:bg-blue-800'}`}><List size={20} /> <span>Ready for Export</span></button>
             <button onClick={() => setActiveTab('completed')} className={`w-full flex items-center space-x-3 p-3 rounded-md transition ${activeTab === 'completed' ? 'bg-blue-600' : 'hover:bg-blue-800'}`}><CheckSquare size={20} /> <span>Completed</span></button>
@@ -207,7 +224,7 @@ const Dashboard = () => {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-gray-50">
           
-          {/* TAB: PRODUCTS */}
+          {/* TAB: PRODUCTS (UPDATED WITH COPY BUTTONS) */}
           {activeTab === 'products' && (
             <div className="max-w-5xl mx-auto">
               <h2 className="text-xl md:text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Inventory List</h2>
@@ -215,22 +232,45 @@ const Dashboard = () => {
                 {products.map(p => (
                   <div key={p.id} className="bg-white rounded-xl shadow-sm border p-4 flex flex-col relative">
                     <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-red-50 p-1 rounded-md transition"><Trash2 size={16}/></button>
+                    
                     <div className="flex space-x-4 items-center mb-3 pr-6">
                       <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
                         {p.product_image ? <img src={p.product_image} alt="" className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-gray-400 mt-4"/>}
                       </div>
                       <div className="flex-1 overflow-hidden">
                         <h3 className="font-bold text-gray-800 text-sm truncate" title={p.store_name}>{p.store_name}</h3>
-                        <p className="text-xs text-gray-500 truncate" title={p.keyword}>{p.keyword}</p>
+                        
+                        {/* Keyword with Copy Button */}
+                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                          <span className="truncate max-w-[120px]" title={p.keyword}>{p.keyword}</span>
+                          <button onClick={() => handleCopy(p.keyword, `kw-${p.id}`)} className="text-indigo-500 hover:text-indigo-700 bg-indigo-50 p-1 rounded transition">
+                            {copiedItem === `kw-${p.id}` ? <Check size={12}/> : <Copy size={12}/>}
+                          </button>
+                        </div>
+
                         <p className="text-sm font-bold text-blue-600 mt-1">${p.product_price}</p>
                       </div>
                     </div>
+                    
                     <div className="flex justify-between items-center bg-gray-50 p-2 rounded mt-auto border text-sm">
                       <span className="font-medium text-gray-700">Qty: {p.order_qty}</span>
                       <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
                     </div>
+
+                    {/* Product Link with Copy Button */}
+                    {p.product_link && (
+                      <div className="flex gap-2 mt-2">
+                        <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center space-x-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 transition">
+                          <ExternalLink size={14}/> <span>View Link</span>
+                        </a>
+                        <button onClick={() => handleCopy(p.product_link, `link-${p.id}`)} className="flex items-center justify-center space-x-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-xs font-bold border border-gray-200 hover:bg-gray-200 transition active:scale-95">
+                          {copiedItem === `link-${p.id}` ? <Check size={14} className="text-green-600"/> : <Copy size={14}/>} <span>Copy</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
+                {products.length === 0 && <p className="text-gray-500 text-center col-span-full mt-10">No products found.</p>}
               </div>
             </div>
           )}
@@ -242,12 +282,12 @@ const Dashboard = () => {
               <form onSubmit={handleAddProduct} className="space-y-4 text-sm">
                 <div className="flex space-x-3 items-center bg-gray-50 p-3 rounded-lg border">
                   <div className="flex-1">
-                    <label className="block text-gray-700 mb-1 font-semibold flex items-center"><UploadCloud size={16} className="mr-1"/> Image</label>
+                    <label className="block text-gray-700 mb-1 font-semibold flex items-center"><UploadCloud size={16} className="mr-1"/> Image (Supabase)</label>
                     <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setNewProduct, 'product_image')} />
                   </div>
                   {newProduct.product_image && <img src={newProduct.product_image} alt="Preview" className="w-14 h-14 object-cover rounded border bg-white" />}
                 </div>
-                <div><label className="block font-semibold mb-1">Product Link</label><input type="url" required className="w-full border p-2 rounded outline-none" value={newProduct.product_link} onChange={e => setNewProduct({...newProduct, product_link: e.target.value})} /></div>
+                <div><label className="block font-semibold mb-1">Product Link</label><input type="url" required className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-400 outline-none" value={newProduct.product_link} onChange={e => setNewProduct({...newProduct, product_link: e.target.value})} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="block font-semibold mb-1">Keyword</label><input type="text" required className="w-full border p-2 rounded outline-none" value={newProduct.keyword} onChange={e => setNewProduct({...newProduct, keyword: e.target.value})} /></div>
                   <div><label className="block font-semibold mb-1">Store</label><input type="text" required className="w-full border p-2 rounded outline-none" value={newProduct.store_name} onChange={e => setNewProduct({...newProduct, store_name: e.target.value})} /></div>
@@ -261,19 +301,19 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: PENDING REVIEWS */}
-          {activeTab === 'pending' && (
+          {/* TAB: NEW ORDER ENTRY (NOW SEPARATED) */}
+          {activeTab === 'new_order' && (
             <div className="max-w-4xl mx-auto">
-              <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500 mb-6">
-                <h3 className="font-bold mb-4 flex items-center text-indigo-700"><PlusCircle size={18} className="mr-2"/> New Order Entry</h3>
-                <form onSubmit={handleSubmitOrder} className="space-y-4 text-sm">
+              <div className="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500">
+                <h3 className="font-bold mb-4 flex items-center text-indigo-700 text-lg"><PlusCircle size={20} className="mr-2"/> New Order Entry</h3>
+                <form onSubmit={handleSubmitOrder} className="space-y-5 text-sm">
                   <div>
                     <label className="block font-semibold mb-1">Select Product</label>
                     <div className="relative">
-                      <div className="w-full border p-2 rounded bg-gray-50 flex items-center justify-between cursor-pointer" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+                      <div className="w-full border p-3 rounded-lg bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
                         {selectedProductForOrder ? (
                           <div className="flex items-center space-x-2">
-                            <img src={selectedProductForOrder.product_image} className="w-8 h-8 rounded object-cover border" />
+                            <img src={selectedProductForOrder.product_image} className="w-8 h-8 rounded object-cover border bg-white" />
                             <span className="font-medium text-gray-700">{selectedProductForOrder.store_name} - Qty: {selectedProductForOrder.order_qty}</span>
                           </div>
                         ) : ( <span className="text-gray-500">-- Choose Product --</span> )}
@@ -281,8 +321,8 @@ const Dashboard = () => {
                       {isDropdownOpen && (
                         <div className="absolute z-20 w-full bg-white border rounded-lg shadow-xl max-h-60 overflow-y-auto mt-1">
                           {products.filter(p => p.status === 'available').map(p => (
-                            <div key={p.id} className="p-2 border-b hover:bg-gray-50 flex items-center space-x-3 cursor-pointer" onClick={() => { setNewOrder({...newOrder, product_id: p.id, current_price: p.product_price}); setIsDropdownOpen(false); }}>
-                              <img src={p.product_image} className="w-10 h-10 rounded object-cover border" />
+                            <div key={p.id} className="p-3 border-b hover:bg-indigo-50 flex items-center space-x-3 cursor-pointer transition" onClick={() => { setNewOrder({...newOrder, product_id: p.id, current_price: p.product_price}); setIsDropdownOpen(false); }}>
+                              <img src={p.product_image} className="w-10 h-10 rounded object-cover border bg-white" />
                               <div>
                                 <p className="text-sm font-bold text-gray-800">{p.store_name}</p>
                                 <p className="text-xs text-gray-500 font-medium">Available Qty: {p.order_qty}</p>
@@ -294,63 +334,95 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block font-semibold mb-1">Order Date</label>
                       <input type="date" required className="w-full border p-2 rounded outline-none bg-blue-50 focus:bg-white" value={newOrder.order_date} onChange={e => setNewOrder({...newOrder, order_date: e.target.value})} />
                     </div>
                     <div>
                       <label className="block font-semibold mb-1">Order Number</label>
-                      <input type="text" required className="w-full border p-2 rounded outline-none" value={newOrder.order_number} onChange={e => setNewOrder({...newOrder, order_number: e.target.value})} placeholder="e.g. 2000048" />
+                      <input type="text" required className="w-full border p-2 rounded outline-none focus:border-indigo-400" value={newOrder.order_number} onChange={e => setNewOrder({...newOrder, order_number: e.target.value})} placeholder="e.g. 2000048" />
                     </div>
                     <div>
                       <label className="block font-semibold mb-1">Current Price ($)</label>
-                      <input type="number" step="0.01" required className="w-full border p-2 rounded outline-none bg-yellow-50 focus:bg-white" value={newOrder.current_price} onChange={e => setNewOrder({...newOrder, current_price: e.target.value})} />
+                      <input type="number" step="0.01" required className="w-full border p-2 rounded outline-none bg-yellow-50 focus:bg-white focus:border-yellow-400" value={newOrder.current_price} onChange={e => setNewOrder({...newOrder, current_price: e.target.value})} />
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 border rounded bg-gray-50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-3 border rounded-lg bg-gray-50">
                       <label className="block text-xs font-bold mb-1">Screenshot 1</label>
-                      <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setNewOrder, 'order_screenshot_1')} />
+                      <input type="file" accept="image/*" className="w-full text-xs cursor-pointer" onChange={e => handleImageUpload(e, setNewOrder, 'order_screenshot_1')} />
                     </div>
-                    <div className="p-3 border rounded bg-gray-50">
+                    <div className="p-3 border rounded-lg bg-gray-50">
                       <label className="block text-xs font-bold mb-1">Screenshot 2 (Opt)</label>
-                      <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setNewOrder, 'order_screenshot_2')} />
+                      <input type="file" accept="image/*" className="w-full text-xs cursor-pointer" onChange={e => handleImageUpload(e, setNewOrder, 'order_screenshot_2')} />
                     </div>
                   </div>
-                  <div><label className="block font-semibold mb-1">PayPal Email</label><input type="email" required className="w-full border p-2 rounded outline-none" value={newOrder.paypal_email} onChange={e => setNewOrder({...newOrder, paypal_email: e.target.value})} /></div>
+                  <div>
+                    <label className="block font-semibold mb-1">PayPal Email</label>
+                    <input type="email" required className="w-full border p-2 rounded outline-none focus:border-indigo-400" value={newOrder.paypal_email} onChange={e => setNewOrder({...newOrder, paypal_email: e.target.value})} />
+                  </div>
                   
-                  <button type="submit" disabled={uploadingImage || isSubmittingOrder} className={`w-full text-white py-3 rounded-lg font-bold shadow transition ${uploadingImage || isSubmittingOrder ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
+                  <button type="submit" disabled={uploadingImage || isSubmittingOrder} className={`w-full text-white py-3 rounded-lg font-bold shadow-md transition ${uploadingImage || isSubmittingOrder ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
                     {isSubmittingOrder ? 'Submitting Order...' : uploadingImage ? 'Uploading Image...' : 'Submit Order'}
                   </button>
                 </form>
               </div>
+            </div>
+          )}
 
-              <h3 className="font-bold text-gray-700 mb-3 text-lg border-b pb-2">Pending Reviews (Waiting)</h3>
+          {/* TAB: PENDING REVIEWS (NOW WITH SEARCH BAR) */}
+          {activeTab === 'pending' && (
+            <div className="max-w-4xl mx-auto">
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
+                <h3 className="font-bold text-gray-800 text-xl">Pending Reviews</h3>
+                {/* Search Bar */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search order number..."
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 p-1"><X size={14}/></button>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-4">
-                {orders.filter(o => o.status === 'pending').map(order => {
-                  const p = products.find(prod => prod.id === order.product_id);
-                  return (
-                    <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
-                          <div className="overflow-hidden pr-2">
-                            <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
-                            <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
+                {filteredPendingOrders.length > 0 ? (
+                  filteredPendingOrders.map(order => {
+                    const p = products.find(prod => prod.id === order.product_id);
+                    return (
+                      <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
+                            <div className="overflow-hidden pr-2">
+                              <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
+                              <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
+                            </div>
                           </div>
+                          <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
                         </div>
-                        <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
+                        
+                        <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                          <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-4 py-2 rounded-lg font-bold transition"><Eye size={14}/> <span>View</span></button>
+                          <button onClick={() => setReviewForm({ orderId: order.id, review_screenshot_1: '', review_screenshot_2: '' })} className="text-xs bg-yellow-500 text-white px-4 py-2 rounded-lg font-bold shadow-sm active:scale-95 transition">Add Review</button>
+                        </div>
                       </div>
-                      
-                      <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                        <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-4 py-2 rounded-lg font-bold transition"><Eye size={14}/> <span>View</span></button>
-                        <button onClick={() => setReviewForm({ orderId: order.id, review_screenshot_1: '', review_screenshot_2: '' })} className="text-xs bg-yellow-500 text-white px-4 py-2 rounded-lg font-bold shadow-sm active:scale-95 transition">Add Review</button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <p className="text-center text-gray-500 py-10 bg-white rounded-xl border border-dashed">
+                    {searchQuery ? "No orders found matching your search." : "No pending reviews found."}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -461,12 +533,11 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* VIEW DETAILS MODAL (NEW: FULL SCREEN & ADDED REVIEW SCREENSHOTS) */}
+          {/* VIEW DETAILS MODAL */}
           {viewOrderModal && (() => {
             const p = products.find(prod => prod.id === viewOrderModal.product_id);
             return (
               <div className="fixed inset-0 bg-gray-50 z-[60] overflow-y-auto flex flex-col w-full h-full pb-10">
-                {/* Sticky Header */}
                 <div className="bg-white px-4 py-3 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
                   <h4 className="font-bold text-lg text-gray-800">Order Details</h4>
                   <button onClick={() => setViewOrderModal(null)} className="flex items-center gap-1 text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg font-bold transition">
@@ -474,7 +545,6 @@ const Dashboard = () => {
                   </button>
                 </div>
                 
-                {/* Main Content inside Modal */}
                 <div className="p-4 md:p-8 max-w-4xl mx-auto w-full">
                   <div className="flex items-center space-x-4 mb-6 bg-white p-4 rounded-xl border shadow-sm">
                     <img src={p?.product_image} alt="" className="w-16 h-16 rounded object-cover border"/>
@@ -486,7 +556,6 @@ const Dashboard = () => {
                   </div>
 
                   <div className="space-y-8">
-                    {/* Order Screenshots */}
                     <div>
                       <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Order Screenshots</h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -495,7 +564,6 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    {/* Review Screenshots (Restored) */}
                     {(viewOrderModal.review_screenshot_1 || viewOrderModal.review_screenshot_2) && (
                       <div>
                         <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Review Screenshots</h5>
@@ -544,13 +612,14 @@ const Dashboard = () => {
         </main>
       </div>
 
-      {/* Mobile Nav */}
-      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-4 text-[10px] font-bold text-gray-500 z-[50]">
-        <button onClick={() => setActiveTab('products')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'products' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><Home size={20} className="mb-1"/>Products</button>
-        <button onClick={() => setActiveTab('add_product')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'add_product' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><PlusCircle size={20} className="mb-1"/>Add</button>
-        <button onClick={() => setActiveTab('pending')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'pending' ? 'text-indigo-600 bg-indigo-50' : 'active:bg-gray-100'}`}><Clock size={20} className="mb-1"/>Pending</button>
-        <button onClick={() => setActiveTab('ready')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'ready' ? 'text-indigo-600 bg-indigo-50' : 'active:bg-gray-100'}`}><List size={20} className="mb-1"/>Ready</button>
-        <button onClick={() => setActiveTab('completed')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'completed' ? 'text-green-600 bg-green-50' : 'active:bg-gray-100'}`}><CheckSquare size={20} className="mb-1"/>Done</button>
+      {/* Mobile Nav (Updated with 6 items layout) */}
+      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-between px-1 py-2 pb-4 text-[9px] font-bold text-gray-500 z-[50]">
+        <button onClick={() => setActiveTab('products')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'products' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><Home size={18} className="mb-1"/>Products</button>
+        <button onClick={() => setActiveTab('add_product')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'add_product' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><PlusCircle size={18} className="mb-1"/>Add Prod</button>
+        <button onClick={() => setActiveTab('new_order')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'new_order' ? 'text-indigo-600 bg-indigo-50' : 'active:bg-gray-100'}`}><ShoppingCart size={18} className="mb-1"/>Order</button>
+        <button onClick={() => setActiveTab('pending')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'pending' ? 'text-indigo-600 bg-indigo-50' : 'active:bg-gray-100'}`}><Clock size={18} className="mb-1"/>Pending</button>
+        <button onClick={() => setActiveTab('ready')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'ready' ? 'text-indigo-600 bg-indigo-50' : 'active:bg-gray-100'}`}><List size={18} className="mb-1"/>Ready</button>
+        <button onClick={() => setActiveTab('completed')} className={`flex flex-col items-center p-1 rounded-lg w-[16%] ${activeTab === 'completed' ? 'text-green-600 bg-green-50' : 'active:bg-gray-100'}`}><CheckSquare size={18} className="mb-1"/>Done</button>
       </nav>
 
     </div>
