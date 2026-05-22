@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Package, ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink, RotateCcw } from 'lucide-react';
+import { Package, ShoppingCart, PlusCircle, LogOut, CheckCircle, UploadCloud, Image as ImageIcon, Download, Trash2, CheckSquare, Home, Eye, Clock, List, ExternalLink, RotateCcw, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const SUPABASE_URL = 'https://nqiqfxcohyzaltepgvjt.supabase.co'; 
@@ -15,7 +15,6 @@ const Dashboard = () => {
   const [viewOrderModal, setViewOrderModal] = useState(null); 
   const [selectedExportOrders, setSelectedExportOrders] = useState([]); 
   
-  // NEW: Double Submit Prevention States
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
@@ -24,7 +23,6 @@ const Dashboard = () => {
   const token = localStorage.getItem('adminToken');
   const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
 
-  // Date Generator for default value
   const today = new Date().toISOString().split('T')[0];
 
   const fetchProducts = () => {
@@ -92,34 +90,36 @@ const Dashboard = () => {
   };
 
   const [newProduct, setNewProduct] = useState({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
+  
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/products', newProduct, axiosConfig);
       alert('Product added!');
       setNewProduct({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
+      e.target.reset(); // File input clear korar jonno
       setActiveTab('products');
     } catch (err) { alert('Failed to add.'); }
   };
 
-  // UPDATED: Added order_date default value
   const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
   
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
-    if(isSubmittingOrder) return; // Prevention check
+    if(isSubmittingOrder) return; 
     if(!newOrder.product_id) return alert('Please select a product!');
     
-    setIsSubmittingOrder(true); // Lock the button
+    setIsSubmittingOrder(true); 
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/orders', newOrder, axiosConfig);
       alert('Order submitted!');
       setNewOrder({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
+      e.target.reset(); // NEW: Form reset to clear file inputs automatically
       fetchOrders(); fetchProducts();
     } catch (err) { 
       alert(err.response?.data?.message || 'Failed to submit.'); 
     } finally {
-      setIsSubmittingOrder(false); // Unlock the button
+      setIsSubmittingOrder(false); 
     }
   };
 
@@ -127,18 +127,19 @@ const Dashboard = () => {
   
   const handleSubmitReview = async (e) => {
     e.preventDefault();
-    if (isSubmittingReview) return; // Prevention check
+    if (isSubmittingReview) return; 
     
-    setIsSubmittingReview(true); // Lock the button
+    setIsSubmittingReview(true); 
     try {
       await axios.put(`https://oms-backend-b5o2.onrender.com/api/orders/${reviewForm.orderId}/review`, reviewForm, axiosConfig);
       alert('Review added!');
       setReviewForm({ orderId: null, review_screenshot_1: '', review_screenshot_2: '' });
+      e.target.reset(); // NEW: Form reset to clear file inputs automatically
       fetchOrders();
     } catch (err) { 
       alert('Failed to review.'); 
     } finally {
-      setIsSubmittingReview(false); // Unlock the button
+      setIsSubmittingReview(false); 
     }
   };
 
@@ -167,7 +168,7 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to mark orders as completed.'); }
   };
 
-  const formatHash = (str) => `#${(str || '').replace(/^#+/, '')}`; // Helper for UI display
+  const formatHash = (str) => `#${(str || '').replace(/^#+/, '')}`;
 
   const selectedProductForOrder = products.find(p => p.id === parseInt(newOrder.product_id));
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
@@ -293,7 +294,6 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  {/* UPDATED: Date picker and Order Number Layout */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block font-semibold mb-1">Order Date</label>
@@ -321,7 +321,6 @@ const Dashboard = () => {
                   </div>
                   <div><label className="block font-semibold mb-1">PayPal Email</label><input type="email" required className="w-full border p-2 rounded outline-none" value={newOrder.paypal_email} onChange={e => setNewOrder({...newOrder, paypal_email: e.target.value})} /></div>
                   
-                  {/* UPDATED: Submit button with loading state */}
                   <button type="submit" disabled={uploadingImage || isSubmittingOrder} className={`w-full text-white py-3 rounded-lg font-bold shadow transition ${uploadingImage || isSubmittingOrder ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
                     {isSubmittingOrder ? 'Submitting Order...' : uploadingImage ? 'Uploading Image...' : 'Submit Order'}
                   </button>
@@ -338,7 +337,6 @@ const Dashboard = () => {
                         <div className="flex items-center space-x-3 overflow-hidden">
                           <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
                           <div className="overflow-hidden pr-2">
-                            {/* FIXED: UI Hash Display */}
                             <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
                             <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
                           </div>
@@ -406,7 +404,6 @@ const Dashboard = () => {
                             <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelect(order.id)} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer mr-2" />
                             <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
                             <div className="overflow-hidden pr-2">
-                              {/* FIXED: UI Hash Display */}
                               <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
                               <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
                             </div>
@@ -447,7 +444,6 @@ const Dashboard = () => {
                       {product.completedList.map(order => (
                         <div key={order.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded border border-green-100">
                           <div className="overflow-hidden pr-2">
-                            {/* FIXED: UI Hash Display */}
                             <p className="text-xs font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
                             <p className="text-[10px] text-gray-500 truncate">{new Date(order.order_date || order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
                           </div>
@@ -465,31 +461,50 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* VIEW DETAILS MODAL */}
+          {/* VIEW DETAILS MODAL (NEW: FULL SCREEN & ADDED REVIEW SCREENSHOTS) */}
           {viewOrderModal && (() => {
             const p = products.find(prod => prod.id === viewOrderModal.product_id);
             return (
-              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-                  <div className="flex justify-between items-center mb-4 border-b pb-2">
-                    <h4 className="font-bold text-lg text-gray-800">Order Details</h4>
-                    <button onClick={() => setViewOrderModal(null)} className="text-red-500 text-sm font-bold bg-red-50 px-3 py-1 rounded-lg hover:bg-red-100">Close</button>
-                  </div>
-                  <div className="flex items-center space-x-3 mb-4 bg-gray-50 p-3 rounded-lg border">
-                    <img src={p?.product_image} alt="" className="w-14 h-14 rounded object-cover border"/>
+              <div className="fixed inset-0 bg-gray-50 z-[60] overflow-y-auto flex flex-col w-full h-full pb-10">
+                {/* Sticky Header */}
+                <div className="bg-white px-4 py-3 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
+                  <h4 className="font-bold text-lg text-gray-800">Order Details</h4>
+                  <button onClick={() => setViewOrderModal(null)} className="flex items-center gap-1 text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg font-bold transition">
+                    <X size={18} /> Close
+                  </button>
+                </div>
+                
+                {/* Main Content inside Modal */}
+                <div className="p-4 md:p-8 max-w-4xl mx-auto w-full">
+                  <div className="flex items-center space-x-4 mb-6 bg-white p-4 rounded-xl border shadow-sm">
+                    <img src={p?.product_image} alt="" className="w-16 h-16 rounded object-cover border"/>
                     <div className="overflow-hidden">
-                      <p className="font-bold text-gray-800 truncate">{p?.store_name}</p>
-                      <p className="text-xs text-gray-500 font-medium truncate">{formatHash(viewOrderModal.order_number)} • {viewOrderModal.paypal_email}</p>
+                      <p className="font-bold text-lg text-gray-800 truncate">{p?.store_name}</p>
+                      <p className="text-sm text-gray-500 font-medium truncate">{formatHash(viewOrderModal.order_number)} • {viewOrderModal.paypal_email}</p>
+                      <p className="text-xs text-blue-600 mt-1 font-bold">Price: ${viewOrderModal.current_price || p?.product_price}</p>
                     </div>
                   </div>
-                  <div className="space-y-4">
+
+                  <div className="space-y-8">
+                    {/* Order Screenshots */}
                     <div>
-                      <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Order Screenshots</h5>
-                      <div className="grid grid-cols-2 gap-2">
-                        {viewOrderModal.order_screenshot_1 ? <img src={viewOrderModal.order_screenshot_1} className="w-full h-28 object-cover rounded-lg border" /> : null}
-                        {viewOrderModal.order_screenshot_2 ? <img src={viewOrderModal.order_screenshot_2} className="w-full h-28 object-cover rounded-lg border" /> : null}
+                      <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Order Screenshots</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {viewOrderModal.order_screenshot_1 ? <a href={viewOrderModal.order_screenshot_1} target="_blank" rel="noreferrer"><img src={viewOrderModal.order_screenshot_1} className="w-full h-auto max-h-[400px] object-contain bg-white rounded-lg border shadow-sm" /></a> : <div className="w-full h-32 bg-white border rounded-lg flex items-center justify-center text-sm text-gray-400">No Image</div>}
+                        {viewOrderModal.order_screenshot_2 ? <a href={viewOrderModal.order_screenshot_2} target="_blank" rel="noreferrer"><img src={viewOrderModal.order_screenshot_2} className="w-full h-auto max-h-[400px] object-contain bg-white rounded-lg border shadow-sm" /></a> : null}
                       </div>
                     </div>
+
+                    {/* Review Screenshots (Restored) */}
+                    {(viewOrderModal.review_screenshot_1 || viewOrderModal.review_screenshot_2) && (
+                      <div>
+                        <h5 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 border-b pb-2">Review Screenshots</h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {viewOrderModal.review_screenshot_1 ? <a href={viewOrderModal.review_screenshot_1} target="_blank" rel="noreferrer"><img src={viewOrderModal.review_screenshot_1} className="w-full h-auto max-h-[400px] object-contain bg-white rounded-lg border shadow-sm" /></a> : <div className="w-full h-32 bg-white border rounded-lg flex items-center justify-center text-sm text-gray-400">No Image</div>}
+                          {viewOrderModal.review_screenshot_2 ? <a href={viewOrderModal.review_screenshot_2} target="_blank" rel="noreferrer"><img src={viewOrderModal.review_screenshot_2} className="w-full h-auto max-h-[400px] object-contain bg-white rounded-lg border shadow-sm" /></a> : null}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -498,7 +513,7 @@ const Dashboard = () => {
 
           {/* ADD REVIEW MODAL */}
           {reviewForm.orderId && (
-            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
                   <h4 className="font-bold text-gray-800">Submit Review</h4>
@@ -518,7 +533,6 @@ const Dashboard = () => {
                      <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setReviewForm, 'review_screenshot_2')} />
                   </div>
                   
-                  {/* UPDATED: Submit Review button with loading state */}
                   <button type="submit" disabled={uploadingImage || isSubmittingReview} className={`w-full py-3 rounded-xl text-sm font-bold shadow mt-2 transition ${uploadingImage || isSubmittingReview ? 'bg-gray-400 text-gray-200 cursor-not-allowed' : 'bg-yellow-500 text-white active:bg-yellow-600 hover:bg-yellow-400'}`}>
                     {isSubmittingReview ? 'Saving Review...' : uploadingImage ? 'Uploading Image...' : 'Save Review'}
                   </button>
@@ -531,7 +545,7 @@ const Dashboard = () => {
       </div>
 
       {/* Mobile Nav */}
-      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-4 text-[10px] font-bold text-gray-500 z-40">
+      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-4 text-[10px] font-bold text-gray-500 z-[50]">
         <button onClick={() => setActiveTab('products')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'products' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><Home size={20} className="mb-1"/>Products</button>
         <button onClick={() => setActiveTab('add_product')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'add_product' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><PlusCircle size={20} className="mb-1"/>Add</button>
         <button onClick={() => setActiveTab('pending')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'pending' ? 'text-indigo-600 bg-indigo-50' : 'active:bg-gray-100'}`}><Clock size={20} className="mb-1"/>Pending</button>
