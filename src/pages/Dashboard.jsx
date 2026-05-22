@@ -14,10 +14,18 @@ const Dashboard = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
   const [viewOrderModal, setViewOrderModal] = useState(null); 
   const [selectedExportOrders, setSelectedExportOrders] = useState([]); 
+  
+  // NEW: Double Submit Prevention States
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
   const navigate = useNavigate();
 
   const token = localStorage.getItem('adminToken');
   const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Date Generator for default value
+  const today = new Date().toISOString().split('T')[0];
 
   const fetchProducts = () => {
     axios.get('https://oms-backend-b5o2.onrender.com/api/products', axiosConfig).then(res => setProducts(res.data.products)).catch(console.error);
@@ -48,18 +56,12 @@ const Dashboard = () => {
       await axios.post(
         `${SUPABASE_URL}/storage/v1/object/oms-images/${fileName}`,
         file,
-        {
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': file.type
-          }
-        }
+        { headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': file.type } }
       );
       const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/oms-images/${fileName}`;
       stateSetter(prev => ({ ...prev, [fieldName]: publicUrl }));
     } catch (err) {
-      alert('ইমেজ আপলোড ফেইল হয়েছে! Supabase URL এবং Key চেক করুন।');
-      console.error(err);
+      alert('ইমেজ আপলোড ফেইল হয়েছে!');
     } finally {
       setUploadingImage(false);
     }
@@ -77,8 +79,7 @@ const Dashboard = () => {
     if (!window.confirm('Delete this order? (If completed, QTY will not be restored)')) return;
     try {
       await axios.delete(`https://oms-backend-b5o2.onrender.com/api/orders/${id}`, axiosConfig);
-      fetchOrders();
-      fetchProducts();
+      fetchOrders(); fetchProducts();
     } catch (err) { alert('Failed to delete order.'); }
   };
 
@@ -101,27 +102,44 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to add.'); }
   };
 
-  const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '' });
+  // UPDATED: Added order_date default value
+  const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
+  
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
+    if(isSubmittingOrder) return; // Prevention check
     if(!newOrder.product_id) return alert('Please select a product!');
+    
+    setIsSubmittingOrder(true); // Lock the button
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/orders', newOrder, axiosConfig);
       alert('Order submitted!');
-      setNewOrder({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '' });
+      setNewOrder({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
       fetchOrders(); fetchProducts();
-    } catch (err) { alert(err.response?.data?.message || 'Failed to submit.'); }
+    } catch (err) { 
+      alert(err.response?.data?.message || 'Failed to submit.'); 
+    } finally {
+      setIsSubmittingOrder(false); // Unlock the button
+    }
   };
 
   const [reviewForm, setReviewForm] = useState({ orderId: null, review_screenshot_1: '', review_screenshot_2: '' });
+  
   const handleSubmitReview = async (e) => {
     e.preventDefault();
+    if (isSubmittingReview) return; // Prevention check
+    
+    setIsSubmittingReview(true); // Lock the button
     try {
       await axios.put(`https://oms-backend-b5o2.onrender.com/api/orders/${reviewForm.orderId}/review`, reviewForm, axiosConfig);
       alert('Review added!');
       setReviewForm({ orderId: null, review_screenshot_1: '', review_screenshot_2: '' });
       fetchOrders();
-    } catch (err) { alert('Failed to review.'); }
+    } catch (err) { 
+      alert('Failed to review.'); 
+    } finally {
+      setIsSubmittingReview(false); // Unlock the button
+    }
   };
 
   const handleDownloadExcel = async () => {
@@ -135,7 +153,7 @@ const Dashboard = () => {
       alert('Excel downloaded!'); 
       setSelectedExportOrders([]);
       fetchOrders();
-    } catch (err) { alert('Failed to export excel!'); console.error(err); }
+    } catch (err) { alert('Failed to export excel!'); }
   };
 
   const handleMarkAsDone = async () => {
@@ -146,8 +164,10 @@ const Dashboard = () => {
       alert('Orders marked as completed!');
       setSelectedExportOrders([]);
       fetchOrders();
-    } catch (err) { alert('Failed to mark orders as completed.'); console.error(err); }
+    } catch (err) { alert('Failed to mark orders as completed.'); }
   };
+
+  const formatHash = (str) => `#${(str || '').replace(/^#+/, '')}`; // Helper for UI display
 
   const selectedProductForOrder = products.find(p => p.id === parseInt(newOrder.product_id));
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
@@ -194,7 +214,6 @@ const Dashboard = () => {
                 {products.map(p => (
                   <div key={p.id} className="bg-white rounded-xl shadow-sm border p-4 flex flex-col relative">
                     <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-red-50 p-1 rounded-md transition"><Trash2 size={16}/></button>
-                    
                     <div className="flex space-x-4 items-center mb-3 pr-6">
                       <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
                         {p.product_image ? <img src={p.product_image} alt="" className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-gray-400 mt-4"/>}
@@ -205,20 +224,12 @@ const Dashboard = () => {
                         <p className="text-sm font-bold text-blue-600 mt-1">${p.product_price}</p>
                       </div>
                     </div>
-                    
                     <div className="flex justify-between items-center bg-gray-50 p-2 rounded mt-auto border text-sm">
                       <span className="font-medium text-gray-700">Qty: {p.order_qty}</span>
                       <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
                     </div>
-
-                    {p.product_link && (
-                      <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center space-x-1 w-full bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 hover:text-blue-700 active:scale-95 transition">
-                        <ExternalLink size={14}/> <span>View Product Link</span>
-                      </a>
-                    )}
                   </div>
                 ))}
-                {products.length === 0 && <p className="text-gray-500 text-center col-span-full mt-10">No products found.</p>}
               </div>
             </div>
           )}
@@ -230,12 +241,12 @@ const Dashboard = () => {
               <form onSubmit={handleAddProduct} className="space-y-4 text-sm">
                 <div className="flex space-x-3 items-center bg-gray-50 p-3 rounded-lg border">
                   <div className="flex-1">
-                    <label className="block text-gray-700 mb-1 font-semibold flex items-center"><UploadCloud size={16} className="mr-1"/> Image (Supabase)</label>
+                    <label className="block text-gray-700 mb-1 font-semibold flex items-center"><UploadCloud size={16} className="mr-1"/> Image</label>
                     <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setNewProduct, 'product_image')} />
                   </div>
                   {newProduct.product_image && <img src={newProduct.product_image} alt="Preview" className="w-14 h-14 object-cover rounded border bg-white" />}
                 </div>
-                <div><label className="block font-semibold mb-1">Product Link</label><input type="url" required className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-400 outline-none" value={newProduct.product_link} onChange={e => setNewProduct({...newProduct, product_link: e.target.value})} /></div>
+                <div><label className="block font-semibold mb-1">Product Link</label><input type="url" required className="w-full border p-2 rounded outline-none" value={newProduct.product_link} onChange={e => setNewProduct({...newProduct, product_link: e.target.value})} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="block font-semibold mb-1">Keyword</label><input type="text" required className="w-full border p-2 rounded outline-none" value={newProduct.keyword} onChange={e => setNewProduct({...newProduct, keyword: e.target.value})} /></div>
                   <div><label className="block font-semibold mb-1">Store</label><input type="text" required className="w-full border p-2 rounded outline-none" value={newProduct.store_name} onChange={e => setNewProduct({...newProduct, store_name: e.target.value})} /></div>
@@ -262,7 +273,7 @@ const Dashboard = () => {
                         {selectedProductForOrder ? (
                           <div className="flex items-center space-x-2">
                             <img src={selectedProductForOrder.product_image} className="w-8 h-8 rounded object-cover border" />
-                            <span className="font-medium text-gray-700">{selectedProductForOrder.store_name} ({selectedProductForOrder.keyword}) - Qty: {selectedProductForOrder.order_qty}</span>
+                            <span className="font-medium text-gray-700">{selectedProductForOrder.store_name} - Qty: {selectedProductForOrder.order_qty}</span>
                           </div>
                         ) : ( <span className="text-gray-500">-- Choose Product --</span> )}
                       </div>
@@ -272,7 +283,7 @@ const Dashboard = () => {
                             <div key={p.id} className="p-2 border-b hover:bg-gray-50 flex items-center space-x-3 cursor-pointer" onClick={() => { setNewOrder({...newOrder, product_id: p.id, current_price: p.product_price}); setIsDropdownOpen(false); }}>
                               <img src={p.product_image} className="w-10 h-10 rounded object-cover border" />
                               <div>
-                                <p className="text-sm font-bold text-gray-800">{p.store_name} ({p.keyword})</p>
+                                <p className="text-sm font-bold text-gray-800">{p.store_name}</p>
                                 <p className="text-xs text-gray-500 font-medium">Available Qty: {p.order_qty}</p>
                               </div>
                             </div>
@@ -282,14 +293,19 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* UPDATED: Date picker and Order Number Layout */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1">Order Date</label>
+                      <input type="date" required className="w-full border p-2 rounded outline-none bg-blue-50 focus:bg-white" value={newOrder.order_date} onChange={e => setNewOrder({...newOrder, order_date: e.target.value})} />
+                    </div>
                     <div>
                       <label className="block font-semibold mb-1">Order Number</label>
-                      <input type="text" required className="w-full border p-2 rounded outline-none" value={newOrder.order_number} onChange={e => setNewOrder({...newOrder, order_number: e.target.value})} />
+                      <input type="text" required className="w-full border p-2 rounded outline-none" value={newOrder.order_number} onChange={e => setNewOrder({...newOrder, order_number: e.target.value})} placeholder="e.g. 2000048" />
                     </div>
                     <div>
                       <label className="block font-semibold mb-1">Current Price ($)</label>
-                      <input type="number" step="0.01" required className="w-full border p-2 rounded outline-none bg-yellow-50 focus:bg-white" value={newOrder.current_price} onChange={e => setNewOrder({...newOrder, current_price: e.target.value})} placeholder="e.g. 15.99" />
+                      <input type="number" step="0.01" required className="w-full border p-2 rounded outline-none bg-yellow-50 focus:bg-white" value={newOrder.current_price} onChange={e => setNewOrder({...newOrder, current_price: e.target.value})} />
                     </div>
                   </div>
                   
@@ -304,7 +320,11 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div><label className="block font-semibold mb-1">PayPal Email</label><input type="email" required className="w-full border p-2 rounded outline-none" value={newOrder.paypal_email} onChange={e => setNewOrder({...newOrder, paypal_email: e.target.value})} /></div>
-                  <button type="submit" disabled={uploadingImage} className={`w-full text-white py-3 rounded-lg font-bold shadow ${uploadingImage ? 'bg-gray-400' : 'bg-indigo-600 active:bg-indigo-700'}`}>Submit Order</button>
+                  
+                  {/* UPDATED: Submit button with loading state */}
+                  <button type="submit" disabled={uploadingImage || isSubmittingOrder} className={`w-full text-white py-3 rounded-lg font-bold shadow transition ${uploadingImage || isSubmittingOrder ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
+                    {isSubmittingOrder ? 'Submitting Order...' : uploadingImage ? 'Uploading Image...' : 'Submit Order'}
+                  </button>
                 </form>
               </div>
 
@@ -318,7 +338,8 @@ const Dashboard = () => {
                         <div className="flex items-center space-x-3 overflow-hidden">
                           <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
                           <div className="overflow-hidden pr-2">
-                            <p className="text-sm font-bold text-gray-800 truncate">#{order.order_number}</p>
+                            {/* FIXED: UI Hash Display */}
+                            <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
                             <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
                           </div>
                         </div>
@@ -332,7 +353,6 @@ const Dashboard = () => {
                     </div>
                   );
                 })}
-                {orders.filter(o => o.status === 'pending').length === 0 && <p className="text-center text-gray-500 py-6">No pending reviews found.</p>}
               </div>
             </div>
           )}
@@ -346,7 +366,6 @@ const Dashboard = () => {
               if (e.target.checked) setSelectedExportOrders(readyOrders.map(o => o.id));
               else setSelectedExportOrders([]);
             };
-
             const handleToggleSelect = (id) => {
               if (selectedExportOrders.includes(id)) setSelectedExportOrders(selectedExportOrders.filter(orderId => orderId !== id));
               else setSelectedExportOrders([...selectedExportOrders, id]);
@@ -357,9 +376,7 @@ const Dashboard = () => {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
                   <div className="flex items-center space-x-3">
                     <h2 className="text-xl font-bold text-gray-800">Ready for Export</h2>
-                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">
-                      {selectedExportOrders.length} Selected
-                    </span>
+                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">{selectedExportOrders.length} Selected</span>
                   </div>
                   <div className="flex space-x-2 w-full sm:w-auto">
                     <button onClick={handleDownloadExcel} disabled={selectedExportOrders.length === 0} className="flex-1 sm:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
@@ -382,26 +399,20 @@ const Dashboard = () => {
                   {readyOrders.map(order => {
                     const p = products.find(prod => prod.id === order.product_id);
                     const isChecked = selectedExportOrders.includes(order.id);
-
                     return (
                       <div key={order.id} className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col transition ${isChecked ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50/10' : ''}`}>
                         <div className="flex justify-between items-start">
                           <div className="flex items-center space-x-3 overflow-hidden">
-                            <input 
-                              type="checkbox" 
-                              checked={isChecked} 
-                              onChange={() => handleToggleSelect(order.id)} 
-                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer mr-2" 
-                            />
+                            <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelect(order.id)} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer mr-2" />
                             <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
                             <div className="overflow-hidden pr-2">
-                              <p className="text-sm font-bold text-gray-800 truncate">#{order.order_number}</p>
+                              {/* FIXED: UI Hash Display */}
+                              <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
                               <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
                             </div>
                           </div>
                           <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 shrink-0"><Trash2 size={18}/></button>
                         </div>
-
                         <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
                           <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
                           <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-4 py-2 rounded-lg font-bold shadow-sm transition"><Eye size={14}/> <span>View Details</span></button>
@@ -409,58 +420,48 @@ const Dashboard = () => {
                       </div>
                     );
                   })}
-                  {readyOrders.length === 0 && <p className="text-center text-gray-500 py-6">No reviews ready for export.</p>}
                 </div>
               </div>
             );
           })()}
 
-          {/* TAB: COMPLETED ORDERS (UPDATED WITH UNDO BUTTON) */}
+          {/* TAB: COMPLETED ORDERS */}
           {activeTab === 'completed' && (
             <div className="max-w-4xl mx-auto">
               <h2 className="text-xl font-bold mb-5 text-gray-800 border-b pb-2">Completed History</h2>
-              {productsWithCompleted.length === 0 ? (
-                <p className="text-center text-gray-500 py-10">No completed orders yet.</p>
-              ) : (
-                <div className="space-y-6">
-                  {productsWithCompleted.map(product => (
-                    <div key={product.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                      <div className="bg-gray-100 p-3 flex items-center justify-between border-b">
-                        <div className="flex items-center space-x-3">
-                          <img src={product.product_image} alt="" className="w-10 h-10 rounded object-cover border bg-white"/>
-                          <div>
-                            <h3 className="font-bold text-sm text-gray-800 leading-tight">{product.store_name}</h3>
-                            <p className="text-[10px] text-gray-500 font-medium">Qty Set: {product.order_qty + product.completedList.length}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-lg font-bold">Done: {product.completedList.length}</span>
+              <div className="space-y-6">
+                {productsWithCompleted.map(product => (
+                  <div key={product.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <div className="bg-gray-100 p-3 flex items-center justify-between border-b">
+                      <div className="flex items-center space-x-3">
+                        <img src={product.product_image} alt="" className="w-10 h-10 rounded object-cover border bg-white"/>
+                        <div>
+                          <h3 className="font-bold text-sm text-gray-800 leading-tight">{product.store_name}</h3>
                         </div>
                       </div>
-                      <div className="p-2 space-y-2">
-                        {product.completedList.map(order => (
-                          <div key={order.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded border border-green-100">
-                            <div className="overflow-hidden pr-2">
-                              <p className="text-xs font-bold text-gray-800 truncate">#{order.order_number}</p>
-                              <p className="text-[10px] text-gray-500 truncate">{new Date(order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
-                            </div>
-                            <div className="flex items-center space-x-2 shrink-0">
-                              <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">View</button>
-                              
-                              {/* NEW UNDO BUTTON */}
-                              <button onClick={() => handleUndoOrder(order.id)} className="text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded font-bold flex items-center gap-1 transition">
-                                <RotateCcw size={10} /> Undo
-                              </button>
-                              
-                              <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600 ml-1"><Trash2 size={16} /></button>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="text-right">
+                        <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-lg font-bold">Done: {product.completedList.length}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="p-2 space-y-2">
+                      {product.completedList.map(order => (
+                        <div key={order.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded border border-green-100">
+                          <div className="overflow-hidden pr-2">
+                            {/* FIXED: UI Hash Display */}
+                            <p className="text-xs font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
+                            <p className="text-[10px] text-gray-500 truncate">{new Date(order.order_date || order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
+                          </div>
+                          <div className="flex items-center space-x-2 shrink-0">
+                            <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">View</button>
+                            <button onClick={() => handleUndoOrder(order.id)} className="text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded font-bold flex items-center gap-1 transition"><RotateCcw size={10} /> Undo</button>
+                            <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600 ml-1"><Trash2 size={16} /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -478,26 +479,17 @@ const Dashboard = () => {
                     <img src={p?.product_image} alt="" className="w-14 h-14 rounded object-cover border"/>
                     <div className="overflow-hidden">
                       <p className="font-bold text-gray-800 truncate">{p?.store_name}</p>
-                      <p className="text-xs text-gray-500 font-medium truncate">#{viewOrderModal.order_number} • {viewOrderModal.paypal_email}</p>
+                      <p className="text-xs text-gray-500 font-medium truncate">{formatHash(viewOrderModal.order_number)} • {viewOrderModal.paypal_email}</p>
                     </div>
                   </div>
                   <div className="space-y-4">
                     <div>
                       <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Order Screenshots</h5>
                       <div className="grid grid-cols-2 gap-2">
-                        {viewOrderModal.order_screenshot_1 ? <a href={viewOrderModal.order_screenshot_1} target="_blank" rel="noreferrer"><img src={viewOrderModal.order_screenshot_1} className="w-full h-28 object-cover rounded-lg border shadow-sm hover:opacity-80 transition cursor-pointer" /></a> : <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-400">No Image</div>}
-                        {viewOrderModal.order_screenshot_2 ? <a href={viewOrderModal.order_screenshot_2} target="_blank" rel="noreferrer"><img src={viewOrderModal.order_screenshot_2} className="w-full h-28 object-cover rounded-lg border shadow-sm hover:opacity-80 transition cursor-pointer" /></a> : <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-400">No Image</div>}
+                        {viewOrderModal.order_screenshot_1 ? <img src={viewOrderModal.order_screenshot_1} className="w-full h-28 object-cover rounded-lg border" /> : null}
+                        {viewOrderModal.order_screenshot_2 ? <img src={viewOrderModal.order_screenshot_2} className="w-full h-28 object-cover rounded-lg border" /> : null}
                       </div>
                     </div>
-                    {(viewOrderModal.review_screenshot_1 || viewOrderModal.review_screenshot_2) && (
-                      <div>
-                        <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Review Screenshots</h5>
-                        <div className="grid grid-cols-2 gap-2">
-                          {viewOrderModal.review_screenshot_1 ? <a href={viewOrderModal.review_screenshot_1} target="_blank" rel="noreferrer"><img src={viewOrderModal.review_screenshot_1} className="w-full h-28 object-cover rounded-lg border shadow-sm hover:opacity-80 transition cursor-pointer" /></a> : <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-400">No Image</div>}
-                          {viewOrderModal.review_screenshot_2 ? <a href={viewOrderModal.review_screenshot_2} target="_blank" rel="noreferrer"><img src={viewOrderModal.review_screenshot_2} className="w-full h-28 object-cover rounded-lg border shadow-sm hover:opacity-80 transition cursor-pointer" /></a> : <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-400">No Image</div>}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -514,7 +506,7 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center space-x-3 mb-4 bg-gray-50 p-2 rounded border">
                   <img src={reviewProductData?.product_image} alt="" className="w-10 h-10 rounded object-cover"/>
-                  <p className="text-xs font-bold truncate">#{reviewOrderData?.order_number}</p>
+                  <p className="text-xs font-bold truncate">{formatHash(reviewOrderData?.order_number)}</p>
                 </div>
                 <form onSubmit={handleSubmitReview} className="space-y-3">
                   <div className="p-3 border rounded bg-gray-50">
@@ -525,7 +517,11 @@ const Dashboard = () => {
                      <label className="block text-xs font-bold mb-1">Review SS 2 (Opt)</label>
                      <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setReviewForm, 'review_screenshot_2')} />
                   </div>
-                  <button type="submit" disabled={uploadingImage} className="w-full py-3 rounded-xl text-sm font-bold shadow bg-yellow-500 text-white active:bg-yellow-600 mt-2">Save Review</button>
+                  
+                  {/* UPDATED: Submit Review button with loading state */}
+                  <button type="submit" disabled={uploadingImage || isSubmittingReview} className={`w-full py-3 rounded-xl text-sm font-bold shadow mt-2 transition ${uploadingImage || isSubmittingReview ? 'bg-gray-400 text-gray-200 cursor-not-allowed' : 'bg-yellow-500 text-white active:bg-yellow-600 hover:bg-yellow-400'}`}>
+                    {isSubmittingReview ? 'Saving Review...' : uploadingImage ? 'Uploading Image...' : 'Save Review'}
+                  </button>
                 </form>
               </div>
             </div>
@@ -534,7 +530,8 @@ const Dashboard = () => {
         </main>
       </div>
 
-      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-4 text-[10px] font-bold text-gray-500 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      {/* Mobile Nav */}
+      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-4 text-[10px] font-bold text-gray-500 z-40">
         <button onClick={() => setActiveTab('products')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'products' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><Home size={20} className="mb-1"/>Products</button>
         <button onClick={() => setActiveTab('add_product')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'add_product' ? 'text-blue-600 bg-blue-50' : 'active:bg-gray-100'}`}><PlusCircle size={20} className="mb-1"/>Add</button>
         <button onClick={() => setActiveTab('pending')} className={`flex flex-col items-center p-2 rounded-xl w-16 ${activeTab === 'pending' ? 'text-indigo-600 bg-indigo-50' : 'active:bg-gray-100'}`}><Clock size={20} className="mb-1"/>Pending</button>
