@@ -19,12 +19,16 @@ const Dashboard = () => {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   
-  // NEW: Separate Search States for each tab
-  const [searchQuery, setSearchQuery] = useState(''); // For Pending Tab
-  const [readySearchQuery, setReadySearchQuery] = useState(''); // For Ready Tab
-  const [completedSearchQuery, setCompletedSearchQuery] = useState(''); // For Completed Tab
+  const [searchQuery, setSearchQuery] = useState(''); 
+  const [readySearchQuery, setReadySearchQuery] = useState(''); 
+  const [completedSearchQuery, setCompletedSearchQuery] = useState(''); 
   
   const [copiedItem, setCopiedItem] = useState(null);
+
+  // NEW: Export Excel Modal States
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFileName, setExportFileName] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   const navigate = useNavigate();
   const token = localStorage.getItem('adminToken');
@@ -161,18 +165,45 @@ const Dashboard = () => {
     }
   };
 
-  const handleDownloadExcel = async () => {
+  // NEW: Open Export Modal
+  const openExportModal = () => {
     if (selectedExportOrders.length === 0) return alert('Please select at least one order to export.');
+    setExportFileName(`Reviews_Export_${today}`); // Default name set in input
+    setShowExportModal(true);
+  };
+
+  // NEW: Confirm & Download Excel with Custom Name
+  const confirmDownloadExcel = async (e) => {
+    e.preventDefault();
+    if (selectedExportOrders.length === 0) return;
+    
+    setIsExporting(true);
     try {
       const res = await axios.post('https://oms-backend-b5o2.onrender.com/api/orders/export', { orderIds: selectedExportOrders }, { ...axiosConfig, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
-      link.href = url; link.setAttribute('download', `Reviews_Export_${new Date().getTime()}.xlsx`);
-      document.body.appendChild(link); link.click(); link.remove();
-      alert('Excel downloaded!'); 
+      link.href = url; 
+      
+      // ফাইলের নামের শেষে .xlsx না থাকলে অটোমেটিক বসিয়ে দেবে
+      let finalName = exportFileName.trim() || `Export_${new Date().getTime()}`;
+      if (!finalName.toLowerCase().endsWith('.xlsx')) {
+        finalName += '.xlsx';
+      }
+      
+      link.setAttribute('download', finalName);
+      document.body.appendChild(link); 
+      link.click(); 
+      link.remove();
+      
+      alert('Excel downloaded successfully!'); 
       setSelectedExportOrders([]);
+      setShowExportModal(false);
       fetchOrders();
-    } catch (err) { alert('Failed to export excel!'); }
+    } catch (err) { 
+      alert('Failed to export excel!'); 
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleMarkAsDone = async () => {
@@ -196,7 +227,6 @@ const Dashboard = () => {
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
   const reviewProductData = reviewOrderData ? products.find(p => p.id === reviewOrderData.product_id) : null;
   
-  // Pending Filter
   const filteredPendingOrders = orders.filter(o => {
     if (o.status !== 'pending') return false;
     if (!searchQuery) return true;
@@ -205,7 +235,6 @@ const Dashboard = () => {
     return orderNum.includes(q);
   });
 
-  // Ready Filter (NEW)
   const filteredReadyOrders = orders.filter(o => {
     if (o.status !== 'review_submitted') return false;
     if (!readySearchQuery) return true;
@@ -214,7 +243,6 @@ const Dashboard = () => {
     return orderNum.includes(q);
   });
 
-  // Completed Filter (NEW)
   const filteredCompletedOrders = orders.filter(o => {
     if (o.status !== 'completed') return false;
     if (!completedSearchQuery) return true;
@@ -461,7 +489,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: READY FOR EXPORT (NOW WITH SEARCH BAR) */}
+          {/* TAB: READY FOR EXPORT */}
           {activeTab === 'ready' && (() => {
             const isAllSelected = filteredReadyOrders.length > 0 && selectedExportOrders.length === filteredReadyOrders.length;
 
@@ -478,13 +506,11 @@ const Dashboard = () => {
               <div className="max-w-4xl mx-auto">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-5 border-b pb-3 gap-3">
                   
-                  {/* Header & Selected Count */}
                   <div className="flex items-center space-x-3 shrink-0">
                     <h2 className="text-xl font-bold text-gray-800">Ready for Export</h2>
                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">{selectedExportOrders.length} Selected</span>
                   </div>
 
-                  {/* Search Bar */}
                   <div className="relative w-full lg:max-w-[200px] xl:max-w-xs">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                     <input
@@ -499,9 +525,9 @@ const Dashboard = () => {
                     )}
                   </div>
 
-                  {/* Action Buttons */}
                   <div className="flex space-x-2 w-full lg:w-auto shrink-0">
-                    <button onClick={handleDownloadExcel} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
+                    {/* CHANGED onClick to openExportModal */}
+                    <button onClick={openExportModal} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
                       <Download size={18} /> <span className="text-sm">Export Excel</span>
                     </button>
                     <button onClick={handleMarkAsDone} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-indigo-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
@@ -556,14 +582,13 @@ const Dashboard = () => {
             );
           })()}
 
-          {/* TAB: COMPLETED ORDERS (NOW WITH SEARCH BAR) */}
+          {/* TAB: COMPLETED ORDERS */}
           {activeTab === 'completed' && (
             <div className="max-w-4xl mx-auto">
               
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
                 <h2 className="text-xl font-bold text-gray-800 shrink-0">Completed History</h2>
                 
-                {/* Search Bar */}
                 <div className="relative w-full sm:w-64">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                   <input
@@ -749,6 +774,38 @@ const Dashboard = () => {
                   <button type="submit" disabled={uploadingImage || isSubmittingReview} className={`w-full py-3 rounded-xl text-sm font-bold shadow mt-2 transition ${uploadingImage || isSubmittingReview ? 'bg-gray-400 text-gray-200 cursor-not-allowed' : 'bg-yellow-500 text-white active:bg-yellow-600 hover:bg-yellow-400'}`}>
                     {isSubmittingReview ? 'Saving Review...' : uploadingImage ? 'Uploading Image...' : 'Save Review'}
                   </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* NEW: EXPORT EXCEL MODAL */}
+          {showExportModal && (
+            <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+                <h4 className="font-bold text-lg text-gray-800 mb-4 border-b pb-2">Export to Excel</h4>
+                <form onSubmit={confirmDownloadExcel}>
+                  <div className="mb-5">
+                    <label className="block text-sm font-bold mb-2 text-gray-700">File Name</label>
+                    <input 
+                      type="text" 
+                      autoFocus
+                      required 
+                      className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-green-500 transition" 
+                      value={exportFileName} 
+                      onChange={e => setExportFileName(e.target.value)} 
+                      placeholder="e.g. My_Export_File" 
+                    />
+                    <p className="text-[11px] text-gray-500 mt-2 font-medium">Note: .xlsx will be added automatically.</p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button type="button" onClick={() => setShowExportModal(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold transition active:scale-95">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={isExporting} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold shadow-md transition disabled:bg-green-400 active:scale-95">
+                      {isExporting ? 'Exporting...' : 'Download'}
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
