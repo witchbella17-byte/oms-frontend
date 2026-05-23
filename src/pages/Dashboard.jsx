@@ -25,8 +25,13 @@ const Dashboard = () => {
   
   const [copiedItem, setCopiedItem] = useState(null);
 
-  // NEW: Export Excel Modal States
+  // NEW: Inventory Tabs and Bulk Product States
+  const [inventoryTab, setInventoryTab] = useState('active'); // 'active' or 'completed'
+  const [selectedCompletedProducts, setSelectedCompletedProducts] = useState([]);
+
+  // UPDATE: Export Excel Modal States for both Orders and Products
   const [showExportModal, setShowExportModal] = useState(false);
+  const [exportType, setExportType] = useState('orders'); // 'orders' or 'products'
   const [exportFileName, setExportFileName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
 
@@ -81,11 +86,31 @@ const Dashboard = () => {
   };
 
   const handleDeleteProduct = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    if (!window.confirm('Are you sure you want to delete this product? (All related orders will be permanently deleted!)')) return;
     try {
       await axios.delete(`https://oms-backend-b5o2.onrender.com/api/products/${id}`, axiosConfig);
       fetchProducts();
+      fetchOrders();
     } catch (err) { alert('Failed to delete.'); }
+  };
+
+  const handleCompleteProduct = async (id) => {
+    if (!window.confirm('Move this product to Completed Inventory?')) return;
+    try {
+      await axios.put(`https://oms-backend-b5o2.onrender.com/api/products/${id}/complete`, {}, axiosConfig);
+      fetchProducts();
+    } catch (err) { alert('Failed to move product.'); }
+  };
+
+  const handleBulkDeleteProducts = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedCompletedProducts.length} products? WARNING: All related orders will also be permanently deleted from the database!`)) return;
+    try {
+      await axios.post('https://oms-backend-b5o2.onrender.com/api/products/bulk-delete', { productIds: selectedCompletedProducts }, axiosConfig);
+      alert('Products deleted successfully!');
+      setSelectedCompletedProducts([]);
+      fetchProducts();
+      fetchOrders();
+    } catch (err) { alert('Failed to bulk delete products.'); }
   };
 
   const handleDeleteOrder = async (id) => {
@@ -165,30 +190,29 @@ const Dashboard = () => {
     }
   };
 
-  // NEW: Open Export Modal
-  const openExportModal = () => {
-    if (selectedExportOrders.length === 0) return alert('Please select at least one order to export.');
-    setExportFileName(`Reviews_Export_${today}`); // Default name set in input
+  const openExportModal = (type) => {
+    setExportType(type);
+    if (type === 'orders' && selectedExportOrders.length === 0) return alert('Please select at least one order to export.');
+    if (type === 'products' && selectedCompletedProducts.length === 0) return alert('Please select at least one product to export.');
+    
+    setExportFileName(type === 'orders' ? `Reviews_Export_${today}` : `Inventory_Export_${today}`);
     setShowExportModal(true);
   };
 
-  // NEW: Confirm & Download Excel with Custom Name
   const confirmDownloadExcel = async (e) => {
     e.preventDefault();
-    if (selectedExportOrders.length === 0) return;
-    
     setIsExporting(true);
     try {
-      const res = await axios.post('https://oms-backend-b5o2.onrender.com/api/orders/export', { orderIds: selectedExportOrders }, { ...axiosConfig, responseType: 'blob' });
+      const endpoint = exportType === 'orders' ? '/api/orders/export' : '/api/products/export';
+      const payload = exportType === 'orders' ? { orderIds: selectedExportOrders } : { productIds: selectedCompletedProducts };
+
+      const res = await axios.post(`https://oms-backend-b5o2.onrender.com${endpoint}`, payload, { ...axiosConfig, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url; 
       
-      // ফাইলের নামের শেষে .xlsx না থাকলে অটোমেটিক বসিয়ে দেবে
       let finalName = exportFileName.trim() || `Export_${new Date().getTime()}`;
-      if (!finalName.toLowerCase().endsWith('.xlsx')) {
-        finalName += '.xlsx';
-      }
+      if (!finalName.toLowerCase().endsWith('.xlsx')) finalName += '.xlsx';
       
       link.setAttribute('download', finalName);
       document.body.appendChild(link); 
@@ -196,7 +220,9 @@ const Dashboard = () => {
       link.remove();
       
       alert('Excel downloaded successfully!'); 
-      setSelectedExportOrders([]);
+      if (exportType === 'orders') setSelectedExportOrders([]);
+      else setSelectedCompletedProducts([]);
+      
       setShowExportModal(false);
       fetchOrders();
     } catch (err) { 
@@ -223,10 +249,21 @@ const Dashboard = () => {
     try { return new Date(dateStr).toISOString().split('T')[0]; } catch(e) { return ''; }
   };
 
+  const handleToggleProductSelect = (id) => {
+    if (selectedCompletedProducts.includes(id)) {
+      setSelectedCompletedProducts(selectedCompletedProducts.filter(pid => pid !== id));
+    } else {
+      setSelectedCompletedProducts([...selectedCompletedProducts, id]);
+    }
+  };
+
   const selectedProductForOrder = products.find(p => p.id === parseInt(newOrder.product_id));
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
   const reviewProductData = reviewOrderData ? products.find(p => p.id === reviewOrderData.product_id) : null;
   
+  const filteredActiveInventory = products.filter(p => p.status !== 'completed');
+  const filteredCompletedInventory = products.filter(p => p.status === 'completed');
+
   const filteredPendingOrders = orders.filter(o => {
     if (o.status !== 'pending') return false;
     if (!searchQuery) return true;
@@ -285,51 +322,93 @@ const Dashboard = () => {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-gray-50">
           
-          {/* TAB: PRODUCTS */}
+          {/* TAB: PRODUCTS (UPDATED WITH COMPLETED INVENTORY LOGIC) */}
           {activeTab === 'products' && (
             <div className="max-w-5xl mx-auto">
-              <h2 className="text-xl md:text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Inventory List</h2>
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-3 gap-3">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800">Inventory List</h2>
+                <div className="flex bg-gray-200 p-1 rounded-lg">
+                  <button onClick={() => setInventoryTab('active')} className={`px-4 py-1.5 text-sm font-bold rounded-md transition ${inventoryTab === 'active' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Active Inventory</button>
+                  <button onClick={() => setInventoryTab('completed')} className={`px-4 py-1.5 text-sm font-bold rounded-md transition ${inventoryTab === 'completed' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Completed Inventory</button>
+                </div>
+              </div>
+
+              {inventoryTab === 'completed' && (
+                <div className="flex justify-between items-center mb-5 bg-green-50 p-3 rounded-lg border border-green-200 shadow-sm">
+                   <div className="flex items-center gap-2">
+                      <input type="checkbox" id="selectAllProds" 
+                        checked={filteredCompletedInventory.length > 0 && selectedCompletedProducts.length === filteredCompletedInventory.length} 
+                        onChange={(e) => e.target.checked ? setSelectedCompletedProducts(filteredCompletedInventory.map(p=>p.id)) : setSelectedCompletedProducts([])} 
+                        className="w-4 h-4 text-green-600 rounded cursor-pointer border-gray-300 focus:ring-green-500" 
+                      />
+                      <label htmlFor="selectAllProds" className="text-sm font-bold text-green-800 cursor-pointer">Select All ({selectedCompletedProducts.length})</label>
+                   </div>
+                   <div className="flex gap-2">
+                      <button onClick={() => openExportModal('products')} disabled={selectedCompletedProducts.length===0} className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 font-bold transition active:scale-95"><Download size={14}/> Export Excel</button>
+                      <button onClick={handleBulkDeleteProducts} disabled={selectedCompletedProducts.length===0} className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 font-bold transition active:scale-95"><Trash2 size={14}/> Delete</button>
+                   </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map(p => (
-                  <div key={p.id} className="bg-white rounded-xl shadow-sm border p-4 flex flex-col relative">
-                    <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-red-50 p-1 rounded-md transition"><Trash2 size={16}/></button>
-                    
-                    <div className="flex space-x-4 items-center mb-3 pr-6">
-                      <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
-                        {p.product_image ? <img src={p.product_image} alt="" className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-gray-400 mt-4"/>}
+                {(inventoryTab === 'active' ? filteredActiveInventory : filteredCompletedInventory).map(p => {
+                  const isChecked = selectedCompletedProducts.includes(p.id);
+                  return (
+                    <div key={p.id} className={`bg-white rounded-xl shadow-sm border p-4 flex flex-col relative transition ${inventoryTab === 'completed' && isChecked ? 'ring-2 ring-green-400 border-green-400 bg-green-50/20' : ''}`}>
+                      
+                      {inventoryTab === 'completed' && (
+                        <input type="checkbox" checked={isChecked} onChange={() => handleToggleProductSelect(p.id)} className="absolute top-4 left-3 w-5 h-5 text-green-600 cursor-pointer z-10" />
+                      )}
+
+                      <div className="absolute top-3 right-3 flex gap-1">
+                        {inventoryTab === 'active' && (
+                          <button onClick={() => handleCompleteProduct(p.id)} className="text-green-500 hover:text-green-700 bg-green-50 hover:bg-green-100 p-1.5 rounded-md transition" title="Mark as Completed"><CheckCircle size={16}/></button>
+                        )}
+                        <button onClick={() => handleDeleteProduct(p.id)} className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition"><Trash2 size={16}/></button>
                       </div>
-                      <div className="flex-1 overflow-hidden">
-                        <h3 className="font-bold text-gray-800 text-sm truncate" title={p.store_name}>{p.store_name}</h3>
-                        
-                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
-                          <span className="truncate max-w-[120px]" title={p.keyword}>{p.keyword}</span>
-                          <button onClick={() => handleCopy(p.keyword, `kw-${p.id}`)} className="text-indigo-500 hover:text-indigo-700 bg-indigo-50 p-1 rounded transition">
-                            {copiedItem === `kw-${p.id}` ? <Check size={12}/> : <Copy size={12}/>}
+                      
+                      <div className={`flex space-x-4 items-center mb-3 pr-16 ${inventoryTab === 'completed' ? 'pl-7' : ''}`}>
+                        <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
+                          {p.product_image ? <img src={p.product_image} alt="" className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-gray-400 mt-4"/>}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <h3 className="font-bold text-gray-800 text-sm truncate" title={p.store_name}>{p.store_name}</h3>
+                          
+                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                            <span className="truncate max-w-[120px]" title={p.keyword}>{p.keyword}</span>
+                            <button onClick={() => handleCopy(p.keyword, `kw-${p.id}`)} className="text-indigo-500 hover:text-indigo-700 bg-indigo-50 p-1 rounded transition">
+                              {copiedItem === `kw-${p.id}` ? <Check size={12}/> : <Copy size={12}/>}
+                            </button>
+                          </div>
+
+                          <p className="text-sm font-bold text-blue-600 mt-1">${p.product_price}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between items-center bg-gray-50 p-2 rounded mt-auto border text-sm">
+                        <span className="font-medium text-gray-700">Qty Set: {p.order_qty}</span>
+                        <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${inventoryTab === 'completed' ? 'bg-gray-200 text-gray-600' : p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {inventoryTab === 'completed' ? 'Archived' : p.status}
+                        </span>
+                      </div>
+
+                      {p.product_link && (
+                        <div className="flex gap-2 mt-2">
+                          <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center space-x-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 transition">
+                            <ExternalLink size={14}/> <span>View Link</span>
+                          </a>
+                          <button onClick={() => handleCopy(p.product_link, `link-${p.id}`)} className="flex items-center justify-center space-x-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-xs font-bold border border-gray-200 hover:bg-gray-200 transition active:scale-95">
+                            {copiedItem === `link-${p.id}` ? <Check size={14} className="text-green-600"/> : <Copy size={14}/>} <span>Copy</span>
                           </button>
                         </div>
-
-                        <p className="text-sm font-bold text-blue-600 mt-1">${p.product_price}</p>
-                      </div>
+                      )}
                     </div>
-                    
-                    <div className="flex justify-between items-center bg-gray-50 p-2 rounded mt-auto border text-sm">
-                      <span className="font-medium text-gray-700">Qty: {p.order_qty}</span>
-                      <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span>
-                    </div>
-
-                    {p.product_link && (
-                      <div className="flex gap-2 mt-2">
-                        <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center space-x-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 transition">
-                          <ExternalLink size={14}/> <span>View Link</span>
-                        </a>
-                        <button onClick={() => handleCopy(p.product_link, `link-${p.id}`)} className="flex items-center justify-center space-x-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-xs font-bold border border-gray-200 hover:bg-gray-200 transition active:scale-95">
-                          {copiedItem === `link-${p.id}` ? <Check size={14} className="text-green-600"/> : <Copy size={14}/>} <span>Copy</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {products.length === 0 && <p className="text-gray-500 text-center col-span-full mt-10">No products found.</p>}
+                  );
+                })}
+                {(inventoryTab === 'active' ? filteredActiveInventory : filteredCompletedInventory).length === 0 && (
+                  <p className="text-gray-500 text-center col-span-full mt-10 border border-dashed rounded-xl p-10 bg-white">No {inventoryTab} products found.</p>
+                )}
               </div>
             </div>
           )}
@@ -526,8 +605,7 @@ const Dashboard = () => {
                   </div>
 
                   <div className="flex space-x-2 w-full lg:w-auto shrink-0">
-                    {/* CHANGED onClick to openExportModal */}
-                    <button onClick={openExportModal} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
+                    <button onClick={() => openExportModal('orders')} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
                       <Download size={18} /> <span className="text-sm">Export Excel</span>
                     </button>
                     <button onClick={handleMarkAsDone} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-indigo-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
@@ -779,7 +857,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* NEW: EXPORT EXCEL MODAL */}
+          {/* EXPORT EXCEL MODAL (FOR BOTH ORDERS AND PRODUCTS) */}
           {showExportModal && (
             <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -794,7 +872,6 @@ const Dashboard = () => {
                       className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-green-500 transition" 
                       value={exportFileName} 
                       onChange={e => setExportFileName(e.target.value)} 
-                      placeholder="e.g. My_Export_File" 
                     />
                     <p className="text-[11px] text-gray-500 mt-2 font-medium">Note: .xlsx will be added automatically.</p>
                   </div>
