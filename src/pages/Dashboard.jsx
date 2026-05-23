@@ -13,13 +13,17 @@ const Dashboard = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
   const [viewOrderModal, setViewOrderModal] = useState(null); 
-  const [editOrderModal, setEditOrderModal] = useState(null); // NEW: Edit Modal State
+  const [editOrderModal, setEditOrderModal] = useState(null); 
   const [selectedExportOrders, setSelectedExportOrders] = useState([]); 
   
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   
-  const [searchQuery, setSearchQuery] = useState('');
+  // NEW: Separate Search States for each tab
+  const [searchQuery, setSearchQuery] = useState(''); // For Pending Tab
+  const [readySearchQuery, setReadySearchQuery] = useState(''); // For Ready Tab
+  const [completedSearchQuery, setCompletedSearchQuery] = useState(''); // For Completed Tab
+  
   const [copiedItem, setCopiedItem] = useState(null);
 
   const navigate = useNavigate();
@@ -128,7 +132,6 @@ const Dashboard = () => {
     }
   };
 
-  // NEW: Handle Update Order
   const handleUpdateOrder = async (e) => {
     e.preventDefault();
     try {
@@ -193,12 +196,7 @@ const Dashboard = () => {
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
   const reviewProductData = reviewOrderData ? products.find(p => p.id === reviewOrderData.product_id) : null;
   
-  const completedOrders = orders.filter(o => o.status === 'completed');
-  const productsWithCompleted = products.map(p => ({
-    ...p,
-    completedList: completedOrders.filter(o => o.product_id === p.id)
-  })).filter(p => p.completedList.length > 0);
-
+  // Pending Filter
   const filteredPendingOrders = orders.filter(o => {
     if (o.status !== 'pending') return false;
     if (!searchQuery) return true;
@@ -206,6 +204,29 @@ const Dashboard = () => {
     const orderNum = o.order_number.toLowerCase().replace(/^#+/, '');
     return orderNum.includes(q);
   });
+
+  // Ready Filter (NEW)
+  const filteredReadyOrders = orders.filter(o => {
+    if (o.status !== 'review_submitted') return false;
+    if (!readySearchQuery) return true;
+    const q = readySearchQuery.toLowerCase().replace(/^#+/, ''); 
+    const orderNum = o.order_number.toLowerCase().replace(/^#+/, '');
+    return orderNum.includes(q);
+  });
+
+  // Completed Filter (NEW)
+  const filteredCompletedOrders = orders.filter(o => {
+    if (o.status !== 'completed') return false;
+    if (!completedSearchQuery) return true;
+    const q = completedSearchQuery.toLowerCase().replace(/^#+/, ''); 
+    const orderNum = o.order_number.toLowerCase().replace(/^#+/, '');
+    return orderNum.includes(q);
+  });
+
+  const productsWithCompleted = products.map(p => ({
+    ...p,
+    completedList: filteredCompletedOrders.filter(o => o.product_id === p.id)
+  })).filter(p => p.completedList.length > 0);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
@@ -418,7 +439,6 @@ const Dashboard = () => {
                             </div>
                           </div>
                           
-                          {/* UPDATED: Added Edit Button next to Delete */}
                           <div className="flex items-center space-x-1 shrink-0">
                             <button onClick={() => setEditOrderModal(order)} className="text-gray-400 hover:text-blue-500 p-1 transition"><Edit size={18}/></button>
                             <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 transition"><Trash2 size={18}/></button>
@@ -441,13 +461,12 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* TAB: READY FOR EXPORT */}
+          {/* TAB: READY FOR EXPORT (NOW WITH SEARCH BAR) */}
           {activeTab === 'ready' && (() => {
-            const readyOrders = orders.filter(o => o.status === 'review_submitted');
-            const isAllSelected = readyOrders.length > 0 && selectedExportOrders.length === readyOrders.length;
+            const isAllSelected = filteredReadyOrders.length > 0 && selectedExportOrders.length === filteredReadyOrders.length;
 
             const handleSelectAll = (e) => {
-              if (e.target.checked) setSelectedExportOrders(readyOrders.map(o => o.id));
+              if (e.target.checked) setSelectedExportOrders(filteredReadyOrders.map(o => o.id));
               else setSelectedExportOrders([]);
             };
             const handleToggleSelect = (id) => {
@@ -457,102 +476,151 @@ const Dashboard = () => {
 
             return (
               <div className="max-w-4xl mx-auto">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
-                  <div className="flex items-center space-x-3">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-5 border-b pb-3 gap-3">
+                  
+                  {/* Header & Selected Count */}
+                  <div className="flex items-center space-x-3 shrink-0">
                     <h2 className="text-xl font-bold text-gray-800">Ready for Export</h2>
                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">{selectedExportOrders.length} Selected</span>
                   </div>
-                  <div className="flex space-x-2 w-full sm:w-auto">
-                    <button onClick={handleDownloadExcel} disabled={selectedExportOrders.length === 0} className="flex-1 sm:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
+
+                  {/* Search Bar */}
+                  <div className="relative w-full lg:max-w-[200px] xl:max-w-xs">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                      type="text"
+                      placeholder="Search order number..."
+                      className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"
+                      value={readySearchQuery}
+                      onChange={(e) => setReadySearchQuery(e.target.value)}
+                    />
+                    {readySearchQuery && (
+                      <button onClick={() => setReadySearchQuery('')} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 p-1"><X size={14}/></button>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-2 w-full lg:w-auto shrink-0">
+                    <button onClick={handleDownloadExcel} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
                       <Download size={18} /> <span className="text-sm">Export Excel</span>
                     </button>
-                    <button onClick={handleMarkAsDone} disabled={selectedExportOrders.length === 0} className="flex-1 sm:flex-none flex justify-center items-center space-x-2 bg-indigo-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
+                    <button onClick={handleMarkAsDone} disabled={selectedExportOrders.length === 0} className="flex-1 lg:flex-none flex justify-center items-center space-x-2 bg-indigo-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg shadow font-medium active:scale-95 transition">
                       <CheckCircle size={18} /> <span className="text-sm">Mark as Done</span>
                     </button>
                   </div>
                 </div>
 
-                {readyOrders.length > 0 && (
+                {filteredReadyOrders.length > 0 && (
                   <div className="flex items-center mb-3 px-2">
                     <input type="checkbox" id="selectAll" checked={isAllSelected} onChange={handleSelectAll} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
-                    <label htmlFor="selectAll" className="ml-2 text-sm font-semibold text-gray-700 cursor-pointer">Select All ({readyOrders.length})</label>
+                    <label htmlFor="selectAll" className="ml-2 text-sm font-semibold text-gray-700 cursor-pointer">Select All ({filteredReadyOrders.length})</label>
                   </div>
                 )}
 
                 <div className="space-y-4">
-                  {readyOrders.map(order => {
-                    const p = products.find(prod => prod.id === order.product_id);
-                    const isChecked = selectedExportOrders.includes(order.id);
-                    return (
-                      <div key={order.id} className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col transition ${isChecked ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50/10' : ''}`}>
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelect(order.id)} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer mr-2" />
-                            <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
-                            <div className="overflow-hidden pr-2">
-                              <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
-                              <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
+                  {filteredReadyOrders.length > 0 ? (
+                    filteredReadyOrders.map(order => {
+                      const p = products.find(prod => prod.id === order.product_id);
+                      const isChecked = selectedExportOrders.includes(order.id);
+                      return (
+                        <div key={order.id} className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col transition ${isChecked ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50/10' : ''}`}>
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center space-x-3 overflow-hidden">
+                              <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelect(order.id)} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer mr-2" />
+                              <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
+                              <div className="overflow-hidden pr-2">
+                                <p className="text-sm font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
+                                <p className="text-[11px] text-gray-500 truncate">{order.paypal_email}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-1 shrink-0">
+                              <button onClick={() => setEditOrderModal(order)} className="text-gray-400 hover:text-blue-500 p-1 transition"><Edit size={18}/></button>
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 transition"><Trash2 size={18}/></button>
                             </div>
                           </div>
-                          
-                          {/* UPDATED: Added Edit Button next to Delete */}
-                          <div className="flex items-center space-x-1 shrink-0">
-                            <button onClick={() => setEditOrderModal(order)} className="text-gray-400 hover:text-blue-500 p-1 transition"><Edit size={18}/></button>
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 transition"><Trash2 size={18}/></button>
+                          <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                            <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
+                            <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-4 py-2 rounded-lg font-bold shadow-sm transition"><Eye size={14}/> <span>View Details</span></button>
                           </div>
                         </div>
-                        <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                          <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
-                          <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-4 py-2 rounded-lg font-bold shadow-sm transition"><Eye size={14}/> <span>View Details</span></button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  ) : (
+                    <p className="text-center text-gray-500 py-10 bg-white rounded-xl border border-dashed">
+                      {readySearchQuery ? "No orders found matching your search." : "No reviews ready for export."}
+                    </p>
+                  )}
                 </div>
               </div>
             );
           })()}
 
-          {/* TAB: COMPLETED ORDERS */}
+          {/* TAB: COMPLETED ORDERS (NOW WITH SEARCH BAR) */}
           {activeTab === 'completed' && (
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-xl font-bold mb-5 text-gray-800 border-b pb-2">Completed History</h2>
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b pb-3 gap-3">
+                <h2 className="text-xl font-bold text-gray-800 shrink-0">Completed History</h2>
+                
+                {/* Search Bar */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search order number..."
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent transition"
+                    value={completedSearchQuery}
+                    onChange={(e) => setCompletedSearchQuery(e.target.value)}
+                  />
+                  {completedSearchQuery && (
+                    <button onClick={() => setCompletedSearchQuery('')} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 p-1"><X size={14}/></button>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-6">
-                {productsWithCompleted.map(product => (
-                  <div key={product.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                    <div className="bg-gray-100 p-3 flex items-center justify-between border-b">
-                      <div className="flex items-center space-x-3">
-                        <img src={product.product_image} alt="" className="w-10 h-10 rounded object-cover border bg-white"/>
-                        <div>
-                          <h3 className="font-bold text-sm text-gray-800 leading-tight">{product.store_name}</h3>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-lg font-bold">Done: {product.completedList.length}</span>
-                      </div>
-                    </div>
-                    <div className="p-2 space-y-2">
-                      {product.completedList.map(order => (
-                        <div key={order.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded border border-green-100">
-                          <div className="overflow-hidden pr-2">
-                            <p className="text-xs font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
-                            <p className="text-[10px] text-gray-500 truncate">{new Date(order.order_date || order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
-                          </div>
-                          <div className="flex items-center space-x-2 shrink-0">
-                            <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">View</button>
-                            <button onClick={() => handleUndoOrder(order.id)} className="text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded font-bold flex items-center gap-1 transition"><RotateCcw size={10} /> Undo</button>
-                            <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600 ml-1"><Trash2 size={16} /></button>
+                {productsWithCompleted.length > 0 ? (
+                  productsWithCompleted.map(product => (
+                    <div key={product.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                      <div className="bg-gray-100 p-3 flex items-center justify-between border-b">
+                        <div className="flex items-center space-x-3">
+                          <img src={product.product_image} alt="" className="w-10 h-10 rounded object-cover border bg-white"/>
+                          <div>
+                            <h3 className="font-bold text-sm text-gray-800 leading-tight">{product.store_name}</h3>
                           </div>
                         </div>
-                      ))}
+                        <div className="text-right">
+                          <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-lg font-bold">Done: {product.completedList.length}</span>
+                        </div>
+                      </div>
+                      <div className="p-2 space-y-2">
+                        {product.completedList.map(order => (
+                          <div key={order.id} className="flex justify-between items-center p-2 bg-green-50/50 rounded border border-green-100">
+                            <div className="overflow-hidden pr-2">
+                              <p className="text-xs font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
+                              <p className="text-[10px] text-gray-500 truncate">{new Date(order.order_date || order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
+                            </div>
+                            <div className="flex items-center space-x-2 shrink-0">
+                              <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">View</button>
+                              <button onClick={() => handleUndoOrder(order.id)} className="text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded font-bold flex items-center gap-1 transition"><RotateCcw size={10} /> Undo</button>
+                              <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600 ml-1"><Trash2 size={16} /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-gray-500 py-10 bg-white rounded-xl border border-dashed">
+                    {completedSearchQuery ? "No completed orders found matching your search." : "No completed orders yet."}
+                  </p>
+                )}
               </div>
             </div>
           )}
 
-          {/* EDIT ORDER MODAL (NEW) */}
+          {/* EDIT ORDER MODAL */}
           {editOrderModal && (
             <div className="fixed inset-0 bg-black/60 z-[60] overflow-y-auto flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10 md:mt-0">
