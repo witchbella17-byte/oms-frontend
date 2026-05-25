@@ -24,14 +24,11 @@ const Dashboard = () => {
   const [completedSearchQuery, setCompletedSearchQuery] = useState(''); 
   
   const [copiedItem, setCopiedItem] = useState(null);
-
-  // NEW: Inventory Tabs and Bulk Product States
-  const [inventoryTab, setInventoryTab] = useState('active'); // 'active' or 'completed'
+  const [inventoryTab, setInventoryTab] = useState('active'); 
   const [selectedCompletedProducts, setSelectedCompletedProducts] = useState([]);
 
-  // UPDATE: Export Excel Modal States for both Orders and Products
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportType, setExportType] = useState('orders'); // 'orders' or 'products'
+  const [exportType, setExportType] = useState('orders'); 
   const [exportFileName, setExportFileName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
 
@@ -114,7 +111,7 @@ const Dashboard = () => {
   };
 
   const handleDeleteOrder = async (id) => {
-    if (!window.confirm('Delete this order? (If completed, QTY will not be restored)')) return;
+    if (!window.confirm('Delete this order?')) return;
     try {
       await axios.delete(`https://oms-backend-b5o2.onrender.com/api/orders/${id}`, axiosConfig);
       fetchOrders(); fetchProducts();
@@ -322,7 +319,7 @@ const Dashboard = () => {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-gray-50">
           
-          {/* TAB: PRODUCTS (UPDATED WITH COMPLETED INVENTORY LOGIC) */}
+          {/* TAB: PRODUCTS */}
           {activeTab === 'products' && (
             <div className="max-w-5xl mx-auto">
               
@@ -361,14 +358,10 @@ const Dashboard = () => {
                         <input type="checkbox" checked={isChecked} onChange={() => handleToggleProductSelect(p.id)} className="absolute top-4 left-3 w-5 h-5 text-green-600 cursor-pointer z-10" />
                       )}
 
-                      <div className="absolute top-3 right-3 flex gap-1">
-                        {inventoryTab === 'active' && (
-                          <button onClick={() => handleCompleteProduct(p.id)} className="text-green-500 hover:text-green-700 bg-green-50 hover:bg-green-100 p-1.5 rounded-md transition" title="Mark as Completed"><CheckCircle size={16}/></button>
-                        )}
-                        <button onClick={() => handleDeleteProduct(p.id)} className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition"><Trash2 size={16}/></button>
-                      </div>
+                      {/* UPDATED: Delete Button Separated (Top Right) */}
+                      <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition" title="Delete Product"><Trash2 size={16}/></button>
                       
-                      <div className={`flex space-x-4 items-center mb-3 pr-16 ${inventoryTab === 'completed' ? 'pl-7' : ''}`}>
+                      <div className={`flex space-x-4 items-center mb-3 pr-10 ${inventoryTab === 'completed' ? 'pl-7' : ''}`}>
                         <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
                           {p.product_image ? <img src={p.product_image} alt="" className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-gray-400 mt-4"/>}
                         </div>
@@ -393,16 +386,24 @@ const Dashboard = () => {
                         </span>
                       </div>
 
-                      {p.product_link && (
-                        <div className="flex gap-2 mt-2">
-                          <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center space-x-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 transition">
-                            <ExternalLink size={14}/> <span>View Link</span>
-                          </a>
-                          <button onClick={() => handleCopy(p.product_link, `link-${p.id}`)} className="flex items-center justify-center space-x-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-xs font-bold border border-gray-200 hover:bg-gray-200 transition active:scale-95">
-                            {copiedItem === `link-${p.id}` ? <Check size={14} className="text-green-600"/> : <Copy size={14}/>} <span>Copy</span>
+                      <div className="flex gap-2 mt-2">
+                        {/* UPDATED: Complete Button placed here for Active items */}
+                        {inventoryTab === 'active' && (
+                          <button onClick={() => handleCompleteProduct(p.id)} className="flex items-center justify-center space-x-1 bg-green-50 text-green-600 px-3 rounded-lg text-xs font-bold border border-green-200 hover:bg-green-100 transition active:scale-95" title="Mark as Completed">
+                            <CheckCircle size={14}/> <span>Complete</span>
                           </button>
-                        </div>
-                      )}
+                        )}
+                        {p.product_link && (
+                          <div className="flex-1 flex gap-2">
+                            <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center space-x-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 transition">
+                              <ExternalLink size={14}/> <span>View Link</span>
+                            </a>
+                            <button onClick={() => handleCopy(p.product_link, `link-${p.id}`)} className="flex items-center justify-center space-x-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-xs font-bold border border-gray-200 hover:bg-gray-200 transition active:scale-95">
+                              {copiedItem === `link-${p.id}` ? <Check size={14} className="text-green-600"/> : <Copy size={14}/>} <span>Copy</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -536,8 +537,8 @@ const Dashboard = () => {
                   filteredPendingOrders.map(order => {
                     const p = products.find(prod => prod.id === order.product_id);
                     return (
-                      <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col">
-                        <div className="flex justify-between items-start">
+                      <div key={order.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col relative">
+                        <div className="flex justify-between items-start pr-8">
                           <div className="flex items-center space-x-3 overflow-hidden">
                             <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
                             <div className="overflow-hidden pr-2">
@@ -546,14 +547,14 @@ const Dashboard = () => {
                             </div>
                           </div>
                           
-                          <div className="flex items-center space-x-1 shrink-0">
-                            <button onClick={() => setEditOrderModal(order)} className="text-gray-400 hover:text-blue-500 p-1 transition"><Edit size={18}/></button>
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 transition"><Trash2 size={18}/></button>
-                          </div>
+                          {/* UPDATED: Delete Button Separated (Top Right) */}
+                          <button onClick={() => handleDeleteOrder(order.id)} className="absolute top-4 right-4 text-red-400 hover:text-red-600 transition"><Trash2 size={18}/></button>
                         </div>
                         
+                        {/* UPDATED: Edit Button moved to Action Bar */}
                         <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                          <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-4 py-2 rounded-lg font-bold transition"><Eye size={14}/> <span>View</span></button>
+                          <button onClick={() => setEditOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-3 py-2 rounded-lg font-bold transition"><Edit size={14}/> <span>Edit</span></button>
+                          <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-3 py-2 rounded-lg font-bold transition"><Eye size={14}/> <span>View</span></button>
                           <button onClick={() => setReviewForm({ orderId: order.id, review_screenshot_1: '', review_screenshot_2: '' })} className="text-xs bg-yellow-500 text-white px-4 py-2 rounded-lg font-bold shadow-sm active:scale-95 transition">Add Review</button>
                         </div>
                       </div>
@@ -627,8 +628,8 @@ const Dashboard = () => {
                       const p = products.find(prod => prod.id === order.product_id);
                       const isChecked = selectedExportOrders.includes(order.id);
                       return (
-                        <div key={order.id} className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col transition ${isChecked ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50/10' : ''}`}>
-                          <div className="flex justify-between items-start">
+                        <div key={order.id} className={`bg-white p-4 rounded-xl shadow-sm border flex flex-col relative transition ${isChecked ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-50/10' : ''}`}>
+                          <div className="flex justify-between items-start pr-8">
                             <div className="flex items-center space-x-3 overflow-hidden">
                               <input type="checkbox" checked={isChecked} onChange={() => handleToggleSelect(order.id)} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer mr-2" />
                               <img src={p?.product_image || ''} alt="" className="w-12 h-12 rounded object-cover border bg-gray-100 shrink-0"/>
@@ -638,13 +639,14 @@ const Dashboard = () => {
                               </div>
                             </div>
                             
-                            <div className="flex items-center space-x-1 shrink-0">
-                              <button onClick={() => setEditOrderModal(order)} className="text-gray-400 hover:text-blue-500 p-1 transition"><Edit size={18}/></button>
-                              <button onClick={() => handleDeleteOrder(order.id)} className="text-gray-400 hover:text-red-500 p-1 transition"><Trash2 size={18}/></button>
-                            </div>
+                            {/* UPDATED: Delete Button Separated (Top Right) */}
+                            <button onClick={() => handleDeleteOrder(order.id)} className="absolute top-4 right-4 text-red-400 hover:text-red-600 transition"><Trash2 size={18}/></button>
                           </div>
+                          
+                          {/* UPDATED: Edit Button moved to Action Bar */}
                           <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
                             <span className="px-3 py-1 text-[10px] uppercase font-bold rounded-md bg-blue-100 text-blue-700 mr-auto">Ready</span>
+                            <button onClick={() => setEditOrderModal(order)} className="text-xs flex items-center space-x-1 text-gray-600 hover:text-blue-600 bg-gray-100 px-3 py-2 rounded-lg font-bold transition"><Edit size={14}/> <span>Edit</span></button>
                             <button onClick={() => setViewOrderModal(order)} className="text-xs flex items-center space-x-1 text-white hover:text-white bg-blue-600 px-4 py-2 rounded-lg font-bold shadow-sm transition"><Eye size={14}/> <span>View Details</span></button>
                           </div>
                         </div>
@@ -704,10 +706,15 @@ const Dashboard = () => {
                               <p className="text-xs font-bold text-gray-800 truncate">{formatHash(order.order_number)}</p>
                               <p className="text-[10px] text-gray-500 truncate">{new Date(order.order_date || order.created_at).toLocaleDateString()} • {order.paypal_email}</p>
                             </div>
+                            
+                            {/* UPDATED: Actions Bar layout for Completed Orders */}
                             <div className="flex items-center space-x-2 shrink-0">
-                              <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">View</button>
+                              <button onClick={() => setViewOrderModal(order)} className="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded font-bold transition">View</button>
+                              <button onClick={() => setEditOrderModal(order)} className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded font-bold flex items-center gap-1 transition"><Edit size={10} /> Edit</button>
                               <button onClick={() => handleUndoOrder(order.id)} className="text-[10px] bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-2 py-1 rounded font-bold flex items-center gap-1 transition"><RotateCcw size={10} /> Undo</button>
-                              <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600 ml-1"><Trash2 size={16} /></button>
+                              <div className="pl-1 border-l border-green-200 ml-1">
+                                <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-red-400 hover:text-red-600 transition"><Trash2 size={16} /></button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -857,7 +864,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* EXPORT EXCEL MODAL (FOR BOTH ORDERS AND PRODUCTS) */}
+          {/* EXPORT EXCEL MODAL */}
           {showExportModal && (
             <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
