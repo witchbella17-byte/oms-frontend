@@ -32,7 +32,7 @@ const Dashboard = () => {
   const [exportFileName, setExportFileName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
 
-  // NEW: Buyer Request (BR) States
+  // Buyer Request (BR) States
   const [buyersRequests, setBuyersRequests] = useState([]);
   const [brSearchQuery, setBrSearchQuery] = useState('');
   const [showBRModal, setShowBRModal] = useState(null);
@@ -135,7 +135,6 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to undo order.'); }
   };
 
-  // NEW: SUBMIT BUYER REQUEST
   const handleCreateBR = async (e) => {
     e.preventDefault();
     if(!buyerNameInput.trim()) return alert('Please enter buyer name');
@@ -156,7 +155,6 @@ const Dashboard = () => {
     }
   };
 
-  // NEW: DELETE BUYER REQUEST
   const handleDeleteBR = async (id) => {
     if(!window.confirm('Are you sure you want to delete this buyer request? Inventory qty will be restored (+1).')) return;
     try {
@@ -179,7 +177,9 @@ const Dashboard = () => {
     } catch (err) { alert('Failed to add.'); }
   };
 
-  const [newOrder, setNewOrder] = useState({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
+  // UPDATED: Added buyer_request_id to state
+  const [newOrder, setNewOrder] = useState({ product_id: '', buyer_request_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
+  
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     if(isSubmittingOrder) return; 
@@ -189,7 +189,7 @@ const Dashboard = () => {
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/orders', newOrder, axiosConfig);
       alert('Order submitted successfully!');
-      setNewOrder({ product_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
+      setNewOrder({ product_id: '', buyer_request_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
       e.target.reset(); fetchOrders(); fetchProducts(); fetchBuyersRequests();
     } catch (err) { 
       alert(err.response?.data?.message || 'Failed to submit.'); 
@@ -280,6 +280,9 @@ const Dashboard = () => {
   const reviewOrderData = orders.find(o => o.id === reviewForm.orderId);
   const reviewProductData = reviewOrderData ? products.find(p => p.id === reviewOrderData.product_id) : null;
   
+  // Find BRs specifically for the selected product in New Order form
+  const relatedBRs = buyersRequests.filter(br => br.product_id === parseInt(newOrder.product_id));
+
   const filteredActiveInventory = products.filter(p => p.status !== 'completed');
   const filteredCompletedInventory = products.filter(p => p.status === 'completed');
 
@@ -306,7 +309,6 @@ const Dashboard = () => {
     completedList: filteredCompletedOrders.filter(o => o.product_id === p.id)
   })).filter(p => p.completedList.length > 0);
 
-  // Filter for Buyer Requests
   const filteredBRs = buyersRequests.filter(br => {
     if (!brSearchQuery) return true;
     const q = brSearchQuery.toLowerCase();
@@ -377,7 +379,6 @@ const Dashboard = () => {
                         <input type="checkbox" checked={isChecked} onChange={() => handleToggleProductSelect(p.id)} className="absolute top-4 left-3 w-5 h-5 text-green-600 cursor-pointer z-10" />
                       )}
 
-                      {/* ISOLATED DELETE BUTTON (TOP RIGHT) */}
                       <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition" title="Delete Product"><Trash2 size={16}/></button>
                       
                       <div className={`flex space-x-4 items-center mb-3 pr-10 ${inventoryTab === 'completed' ? 'pl-7' : ''}`}>
@@ -472,7 +473,7 @@ const Dashboard = () => {
                       {isDropdownOpen && (
                         <div className="absolute z-20 w-full bg-white border rounded-lg shadow-xl max-h-60 overflow-y-auto mt-1">
                           {products.map(p => (
-                            <div key={p.id} className="p-3 border-b hover:bg-indigo-50 flex items-center space-x-3 cursor-pointer transition" onClick={() => { setNewOrder({...newOrder, product_id: p.id, current_price: p.product_price}); setIsDropdownOpen(false); }}>
+                            <div key={p.id} className="p-3 border-b hover:bg-indigo-50 flex items-center space-x-3 cursor-pointer transition" onClick={() => { setNewOrder({...newOrder, product_id: p.id, current_price: p.product_price, buyer_request_id: ''}); setIsDropdownOpen(false); }}>
                               <img src={p.product_image} className="w-10 h-10 rounded object-cover border bg-white" />
                               <div>
                                 <p className="text-sm font-bold text-gray-800">{p.store_name}</p>
@@ -483,6 +484,24 @@ const Dashboard = () => {
                         </div>
                       )}
                     </div>
+
+                    {/* NEW: BUYER REQUEST DROPDOWN SELECTION */}
+                    {newOrder.product_id && relatedBRs.length > 0 && (
+                      <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <label className="block font-semibold mb-1 text-purple-800">Select Assigned Buyer (Optional)</label>
+                        <select 
+                          className="w-full border p-2 rounded outline-none focus:border-purple-400 bg-white"
+                          value={newOrder.buyer_request_id}
+                          onChange={e => setNewOrder({...newOrder, buyer_request_id: e.target.value})}
+                        >
+                          <option value="">-- Direct Order (No Assigned Buyer) --</option>
+                          {relatedBRs.map(br => (
+                            <option key={br.id} value={br.id}>{br.buyer_name} (Assigned: {new Date(br.created_at).toLocaleDateString()})</option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-purple-600 mt-1.5 font-semibold">If you select a buyer, their request will be marked complete. Stock won't be deducted twice.</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -552,7 +571,6 @@ const Dashboard = () => {
                         </div>
                       </div>
                       
-                      {/* ISOLATED DELETE BUTTON (FAR RIGHT SIDE) */}
                       <button onClick={() => handleDeleteBR(br.id)} className="absolute top-1/2 right-4 transform -translate-y-1/2 text-gray-400 hover:text-red-500 p-1.5 rounded-md transition" title="Delete Request & Restore Stock">
                         <Trash2 size={18}/>
                       </button>
@@ -592,7 +610,6 @@ const Dashboard = () => {
                           </div>
                         </div>
                         
-                        {/* ISOLATED DELETE BUTTON (TOP RIGHT) */}
                         <button onClick={() => handleDeleteOrder(order.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition"><Trash2 size={18}/></button>
 
                         <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
@@ -670,7 +687,6 @@ const Dashboard = () => {
                             </div>
                           </div>
                           
-                          {/* ISOLATED DELETE BUTTON (TOP RIGHT) */}
                           <button onClick={() => handleDeleteOrder(order.id)} className="absolute top-4 right-4 text-red-400 hover:text-red-600 transition"><Trash2 size={18}/></button>
                           
                           <div className="flex justify-end items-center gap-2 mt-4 pt-3 border-t border-gray-100">
@@ -736,7 +752,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* NEW: ASSIGN BUYER REQUEST MODAL */}
+          {/* ASSIGN BUYER REQUEST MODAL */}
           {showBRModal && (
             <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
