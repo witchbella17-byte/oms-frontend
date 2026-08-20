@@ -167,14 +167,18 @@ const Dashboard = () => {
   };
 
   const [newProduct, setNewProduct] = useState({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
+  const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    if(isSubmittingProduct) return;
+    setIsSubmittingProduct(true);
     try {
       await axios.post('https://oms-backend-b5o2.onrender.com/api/products', newProduct, axiosConfig);
       alert('Product added!');
       setNewProduct({ product_image: '', product_link: '', keyword: '', store_name: '', product_price: '', order_qty: '' });
       e.target.reset(); setActiveTab('products');
-    } catch (err) { alert('Failed to add.'); }
+    } catch (err) { alert('Failed to add. If the server is waking up, it might be added automatically soon. Please refresh and check before trying again!'); }
+    finally { setIsSubmittingProduct(false); }
   };
 
   // UPDATED: Added buyer_request_id to state
@@ -192,7 +196,7 @@ const Dashboard = () => {
       setNewOrder({ product_id: '', buyer_request_id: '', order_number: '', order_screenshot_1: '', order_screenshot_2: '', paypal_email: '', current_price: '', order_date: today });
       e.target.reset(); fetchOrders(); fetchProducts(); fetchBuyersRequests();
     } catch (err) { 
-      alert(err.response?.data?.message || 'Failed to submit.'); 
+      alert(err.response?.data?.message || 'Failed to submit. If the server is waking up, it might be added automatically soon. Please refresh and check before trying again!'); 
     } finally {
       setIsSubmittingOrder(false); 
     }
@@ -448,7 +452,7 @@ const Dashboard = () => {
                   <div><label className="block font-semibold mb-1">Price ($)</label><input type="number" step="0.01" required className="w-full border p-2 rounded outline-none" value={newProduct.product_price} onChange={e => setNewProduct({...newProduct, product_price: e.target.value})} /></div>
                   <div><label className="block font-semibold mb-1">Qty</label><input type="number" required className="w-full border p-2 rounded outline-none" value={newProduct.order_qty} onChange={e => setNewProduct({...newProduct, order_qty: e.target.value})} /></div>
                 </div>
-                <button type="submit" disabled={uploadingImage} className={`w-full text-white py-3 rounded-lg font-bold shadow-md transition ${uploadingImage ? 'bg-gray-400' : 'bg-blue-600 active:bg-blue-700'}`}>{uploadingImage ? 'Uploading...' : 'Save Product'}</button>
+                <button type="submit" disabled={uploadingImage || isSubmittingProduct} className={`w-full text-white py-3 rounded-lg font-bold shadow-md transition ${uploadingImage || isSubmittingProduct ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 active:bg-blue-700'}`}>{isSubmittingProduct ? 'Adding Product...' : uploadingImage ? 'Uploading...' : 'Save Product'}</button>
               </form>
             </div>
           )}
@@ -801,16 +805,32 @@ const Dashboard = () => {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-3 border rounded-lg bg-gray-50">
-                      <label className="block text-xs font-bold mb-2">Screenshot 1</label>
+                      <label className="block text-xs font-bold mb-2">Order Screenshot 1</label>
                       {editOrderModal.order_screenshot_1 && <img src={editOrderModal.order_screenshot_1} className="h-16 w-16 object-cover border rounded mb-2" />}
                       <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setEditOrderModal, 'order_screenshot_1')} />
                     </div>
                     <div className="p-3 border rounded-lg bg-gray-50">
-                      <label className="block text-xs font-bold mb-2">Screenshot 2 (Opt)</label>
+                      <label className="block text-xs font-bold mb-2">Order Screenshot 2 (Opt)</label>
                       {editOrderModal.order_screenshot_2 && <img src={editOrderModal.order_screenshot_2} className="h-16 w-16 object-cover border rounded mb-2" />}
                       <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setEditOrderModal, 'order_screenshot_2')} />
                     </div>
                   </div>
+                  
+                  {/* REVIEW SCREENSHOTS EDIT (Only show if review submitted or completed) */}
+                  {(editOrderModal.status === 'review_submitted' || editOrderModal.status === 'completed' || editOrderModal.review_screenshot_1) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="p-3 border rounded-lg bg-blue-50">
+                        <label className="block text-xs font-bold mb-2">Review Screenshot 1</label>
+                        {editOrderModal.review_screenshot_1 && <img src={editOrderModal.review_screenshot_1} className="h-16 w-16 object-cover border rounded mb-2" />}
+                        <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setEditOrderModal, 'review_screenshot_1')} />
+                      </div>
+                      <div className="p-3 border rounded-lg bg-blue-50">
+                        <label className="block text-xs font-bold mb-2">Review Screenshot 2 (Opt)</label>
+                        {editOrderModal.review_screenshot_2 && <img src={editOrderModal.review_screenshot_2} className="h-16 w-16 object-cover border rounded mb-2" />}
+                        <input type="file" accept="image/*" className="w-full text-xs" onChange={e => handleImageUpload(e, setEditOrderModal, 'review_screenshot_2')} />
+                      </div>
+                    </div>
+                  )}
                   <button type="submit" disabled={uploadingImage} className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold shadow-md">{uploadingImage ? 'Uploading Image...' : 'Save Changes'}</button>
                 </form>
               </div>
