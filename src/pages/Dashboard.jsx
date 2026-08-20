@@ -439,6 +439,24 @@ const Dashboard = () => {
                           </div>
                         )}
                       </div>
+
+                      {inventoryTab === 'deletable' && (
+                        <div className="mt-3 bg-red-50 p-2 rounded-lg border border-red-100 text-xs text-gray-700">
+                          <p className="font-bold mb-1 border-b border-red-200 pb-1 text-red-800 flex items-center gap-1"><CheckSquare size={14}/> Completed Orders Proof ({orders.filter(o => o.product_id === p.id).length})</p>
+                          <div className="max-h-24 overflow-y-auto space-y-1 mt-1 pr-1 custom-scrollbar">
+                            {orders.filter(o => o.product_id === p.id).length > 0 ? (
+                              orders.filter(o => o.product_id === p.id).map(o => (
+                                <div key={o.id} className="flex justify-between items-center bg-white p-1 px-2 rounded border border-red-100 shadow-sm">
+                                  <span className="font-semibold text-gray-800 truncate" title={o.order_number}>{o.order_number}</span>
+                                  <span className="text-green-600 font-bold flex items-center gap-1 shrink-0"><CheckCircle size={12}/> Done</span>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-gray-500 italic text-center p-1">No orders found. Safe to delete.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
