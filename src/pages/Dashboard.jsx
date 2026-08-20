@@ -289,6 +289,16 @@ const Dashboard = () => {
 
   const filteredActiveInventory = products.filter(p => p.status !== 'completed');
   const filteredCompletedInventory = products.filter(p => p.status === 'completed');
+  const filteredDeletableInventory = products.filter(p => {
+    // Product must be completed or out of stock
+    if (p.status !== 'completed' && p.status !== 'not_available' && p.order_qty > 0) return false;
+    
+    // All orders for this product must be completed
+    const productOrders = orders.filter(o => o.product_id === p.id);
+    const hasUnfinishedOrders = productOrders.some(o => o.status !== 'completed');
+    
+    return !hasUnfinishedOrders;
+  });
 
   const filteredPendingOrders = orders.filter(o => {
     if (o.status !== 'pending') return false;
@@ -358,34 +368,39 @@ const Dashboard = () => {
                 <div className="flex bg-gray-200 p-1 rounded-lg">
                   <button onClick={() => setInventoryTab('active')} className={`px-4 py-1.5 text-sm font-bold rounded-md transition ${inventoryTab === 'active' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Active Inventory</button>
                   <button onClick={() => setInventoryTab('completed')} className={`px-4 py-1.5 text-sm font-bold rounded-md transition ${inventoryTab === 'completed' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Completed Inventory</button>
+                  <button onClick={() => setInventoryTab('deletable')} className={`px-4 py-1.5 text-sm font-bold rounded-md transition ${inventoryTab === 'deletable' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Ready to Delete</button>
                 </div>
               </div>
 
-              {inventoryTab === 'completed' && (
+              {(inventoryTab === 'completed' || inventoryTab === 'deletable') && (() => {
+                const currentList = inventoryTab === 'completed' ? filteredCompletedInventory : filteredDeletableInventory;
+                const isAllSelected = currentList.length > 0 && selectedCompletedProducts.length === currentList.length;
+                return (
                 <div className="flex justify-between items-center mb-5 bg-green-50 p-3 rounded-lg border border-green-200 shadow-sm">
                    <div className="flex items-center gap-2">
-                      <input type="checkbox" id="selectAllProds" checked={filteredCompletedInventory.length > 0 && selectedCompletedProducts.length === filteredCompletedInventory.length} onChange={(e) => e.target.checked ? setSelectedCompletedProducts(filteredCompletedInventory.map(p=>p.id)) : setSelectedCompletedProducts([])} className="w-4 h-4 text-green-600 rounded cursor-pointer border-gray-300 focus:ring-green-500" />
+                      <input type="checkbox" id="selectAllProds" checked={isAllSelected} onChange={(e) => e.target.checked ? setSelectedCompletedProducts(currentList.map(p=>p.id)) : setSelectedCompletedProducts([])} className="w-4 h-4 text-green-600 rounded cursor-pointer border-gray-300 focus:ring-green-500" />
                       <label htmlFor="selectAllProds" className="text-sm font-bold text-green-800 cursor-pointer">Select All ({selectedCompletedProducts.length})</label>
                    </div>
                    <div className="flex gap-2">
-                      <button onClick={() => openExportModal('products')} disabled={selectedCompletedProducts.length===0} className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 font-bold transition active:scale-95"><Download size={14}/> Export Excel</button>
+                      {inventoryTab === 'completed' && <button onClick={() => openExportModal('products')} disabled={selectedCompletedProducts.length===0} className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 font-bold transition active:scale-95"><Download size={14}/> Export Excel</button>}
                       <button onClick={handleBulkDeleteProducts} disabled={selectedCompletedProducts.length===0} className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1 font-bold transition active:scale-95"><Trash2 size={14}/> Delete</button>
                    </div>
                 </div>
-              )}
+                );
+              })()}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(inventoryTab === 'active' ? filteredActiveInventory : filteredCompletedInventory).map(p => {
+                {(inventoryTab === 'active' ? filteredActiveInventory : inventoryTab === 'completed' ? filteredCompletedInventory : filteredDeletableInventory).map(p => {
                   const isChecked = selectedCompletedProducts.includes(p.id);
                   return (
-                    <div key={p.id} className={`bg-white rounded-xl shadow-sm border p-4 flex flex-col relative transition ${inventoryTab === 'completed' && isChecked ? 'ring-2 ring-green-400 border-green-400 bg-green-50/20' : ''}`}>
-                      {inventoryTab === 'completed' && (
+                    <div key={p.id} className={`bg-white rounded-xl shadow-sm border p-4 flex flex-col relative transition ${(inventoryTab === 'completed' || inventoryTab === 'deletable') && isChecked ? 'ring-2 ring-green-400 border-green-400 bg-green-50/20' : ''}`}>
+                      {(inventoryTab === 'completed' || inventoryTab === 'deletable') && (
                         <input type="checkbox" checked={isChecked} onChange={() => handleToggleProductSelect(p.id)} className="absolute top-4 left-3 w-5 h-5 text-green-600 cursor-pointer z-10" />
                       )}
 
                       <button onClick={() => handleDeleteProduct(p.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-md transition" title="Delete Product"><Trash2 size={16}/></button>
                       
-                      <div className={`flex space-x-4 items-center mb-3 pr-10 ${inventoryTab === 'completed' ? 'pl-7' : ''}`}>
+                      <div className={`flex space-x-4 items-center mb-3 pr-10 ${(inventoryTab === 'completed' || inventoryTab === 'deletable') ? 'pl-7' : ''}`}>
                         <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
                           {p.product_image ? <img src={p.product_image} alt="" className="w-full h-full object-cover"/> : <ImageIcon className="m-auto text-gray-400 mt-4"/>}
                         </div>
@@ -403,7 +418,7 @@ const Dashboard = () => {
                       
                       <div className="flex justify-between items-center bg-gray-50 p-2 rounded mt-auto border text-sm">
                         <span className="font-medium text-gray-700">Qty Set: {p.order_qty}</span>
-                        <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${inventoryTab === 'completed' ? 'bg-gray-200 text-gray-600' : p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{inventoryTab === 'completed' ? 'Archived' : p.status}</span>
+                        <span className={`px-2 py-1 text-[10px] uppercase font-bold rounded-md ${(inventoryTab === 'completed' || inventoryTab === 'deletable') ? 'bg-gray-200 text-gray-600' : p.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{(inventoryTab === 'completed' || inventoryTab === 'deletable') ? 'Archived' : p.status}</span>
                       </div>
 
                       <div className="flex flex-wrap gap-2 mt-2">
