@@ -443,12 +443,20 @@ const Dashboard = () => {
                       {inventoryTab === 'deletable' && (
                         <div className="mt-3 bg-red-50 p-2 rounded-lg border border-red-100 text-xs text-gray-700">
                           <p className="font-bold mb-1 border-b border-red-200 pb-1 text-red-800 flex items-center gap-1"><CheckSquare size={14}/> Completed Orders Proof ({orders.filter(o => o.product_id === p.id).length})</p>
-                          <div className="max-h-24 overflow-y-auto space-y-1 mt-1 pr-1 custom-scrollbar">
+                          <div className="max-h-48 overflow-y-auto space-y-2 mt-2 pr-1 custom-scrollbar">
                             {orders.filter(o => o.product_id === p.id).length > 0 ? (
                               orders.filter(o => o.product_id === p.id).map(o => (
-                                <div key={o.id} className="flex justify-between items-center bg-white p-1 px-2 rounded border border-red-100 shadow-sm">
-                                  <span className="font-semibold text-gray-800 truncate" title={o.order_number}>{o.order_number}</span>
-                                  <span className="text-green-600 font-bold flex items-center gap-1 shrink-0"><CheckCircle size={12}/> Done</span>
+                                <div key={o.id} className="flex flex-col bg-white p-2 rounded border border-red-100 shadow-sm">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="font-semibold text-gray-800 truncate" title={o.order_number}>{o.order_number}</span>
+                                    <span className="text-green-600 font-bold flex items-center gap-1 shrink-0 text-[10px] uppercase"><CheckCircle size={12}/> Done</span>
+                                  </div>
+                                  <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+                                    {o.order_screenshot_1 && <a href={o.order_screenshot_1} target="_blank" rel="noreferrer"><img src={o.order_screenshot_1} className="h-10 w-10 object-cover rounded border" title="Order Screenshot 1" /></a>}
+                                    {o.order_screenshot_2 && <a href={o.order_screenshot_2} target="_blank" rel="noreferrer"><img src={o.order_screenshot_2} className="h-10 w-10 object-cover rounded border" title="Order Screenshot 2" /></a>}
+                                    {o.review_screenshot_1 && <a href={o.review_screenshot_1} target="_blank" rel="noreferrer"><img src={o.review_screenshot_1} className="h-10 w-10 object-cover rounded border border-blue-200" title="Review Screenshot 1" /></a>}
+                                    {o.review_screenshot_2 && <a href={o.review_screenshot_2} target="_blank" rel="noreferrer"><img src={o.review_screenshot_2} className="h-10 w-10 object-cover rounded border border-blue-200" title="Review Screenshot 2" /></a>}
+                                  </div>
                                 </div>
                               ))
                             ) : (
